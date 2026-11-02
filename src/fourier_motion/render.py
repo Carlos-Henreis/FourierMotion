@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from .config import Settings
 from .fourier import Analysis, reconstruct
+from .audio import ffmpeg_command, validate_audio
 
 
 def _font(size: int, serif: bool = False):
@@ -421,7 +422,8 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
 
 
 def render_video(analysis: Analysis, path_ids: np.ndarray,
-                 destination: str | Path, settings: Settings) -> None:
+                 destination: str | Path, settings: Settings,
+                 audio: str | Path | None = None) -> None:
     """Gera MP4 H.264 atomicamente e falha se FFmpeg falhar."""
     settings.validate()
     if shutil.which("ffmpeg") is None:
@@ -430,11 +432,8 @@ def render_video(analysis: Analysis, path_ids: np.ndarray,
     destination.parent.mkdir(parents=True, exist_ok=True)
     temp = destination.with_name(destination.stem + ".partial.mp4")
     total = round(settings.duration * settings.fps)
-    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo",
-           "-pixel_format", "rgb24", "-video_size", f"{settings.width}x{settings.height}",
-           "-framerate", str(settings.fps), "-i", "-", "-an", "-c:v", "libx264",
-           "-preset", settings.speed, "-crf", "20", "-pix_fmt", "yuv420p",
-           "-movflags", "+faststart", "-t", str(settings.duration), str(temp)]
+    soundtrack = validate_audio(audio)
+    cmd = ffmpeg_command(settings, temp, soundtrack)
     process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         assert process.stdin is not None
