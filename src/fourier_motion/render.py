@@ -35,35 +35,30 @@ def visual_stages(analysis: Analysis, cfg: Settings) -> tuple[int, ...]:
 
 
 def stage_timing(frame: int, total: int, cfg: Settings, stages: tuple[int, ...]):
-    """Retorna ('flash'|'stage'|'final', N, fase, índice).
+    """7s de abertura, uma volta completa por N e resultado final sem pausas.
 
-    Cada etapa percorre t=0..1 em cycle_seconds; frames restantes são
-    distribuídos como pausa entre os ciclos. Nenhuma etapa é cortada.
+    Não diluímos frames excedentes nos estágios. Assim que t chega a 1,
+    a próxima etapa começa imediatamente. O tempo restante do vídeo
+    pertence à tela de resultado, sem fingir que N<=200 convergiu.
     """
-    flash = round(cfg.flash_seconds * cfg.fps)
-    end = total - round(cfg.final_seconds * cfg.fps)
-    if frame < flash:
-        return ("flash", stages[-1], 1.0, -1)
-    if frame >= end:
-        return ("final", stages[-1], 1.0, len(stages) - 1)
-    available = end - flash
+    opening = round(cfg.flash_seconds * cfg.fps)
     cycle_frames = max(2, round(cfg.cycle_seconds * cfg.fps))
-    required = len(stages) * cycle_frames
-    if available < required:
+    final_minimum = round(cfg.final_seconds * cfg.fps)
+    required = opening + len(stages) * cycle_frames + final_minimum
+    if required > total:
         raise ValueError(
-            f"Duração insuficiente para {len(stages)} etapas de "
-            f"{cfg.cycle_seconds}s; aumente --duration ou reduza --stage-terms"
+            f"Duração insuficiente: {required / cfg.fps:.2f}s necessários "
+            f"para abertura, {len(stages)} ciclos e encerramento."
         )
-    extra = available - required
-    position = frame - flash
-    for i, n in enumerate(stages):
-        hold = (i + 1) * extra // len(stages) - i * extra // len(stages)
-        span = cycle_frames + hold
-        if position < span:
-            phase = min(1.0, position / (cycle_frames - 1))
-            return ("stage", n, phase, i)
-        position -= span
-    raise RuntimeError("Falha no escalonamento da animação")
+    if frame < opening:
+        return ("flash", stages[-1], 1.0, -1)
+    step_frame = frame - opening
+    stage_index = step_frame // cycle_frames
+    if stage_index < len(stages):
+        local_frame = step_frame % cycle_frames
+        phase = local_frame / (cycle_frames - 1)
+        return ("stage", stages[stage_index], phase, stage_index)
+    return ("final", stages[-1], 1.0, len(stages) - 1)
 
 
 def _terms(coeff: np.ndarray, n: int, t: float) -> np.ndarray:
@@ -135,25 +130,37 @@ def _dashed(draw, start, end, color, width=2, dash=10, gap=8):
         draw.line((tuple(p), tuple(q)), fill=color, width=width)
 
 
-def _visual_scale(analysis: Analysis, w: int, h: int, cfg: Settings) -> float:
-    """Bounding box do sinal centralizado, em 68% da região útil de desenho.
+def _visual_scale(analysis: Analysis, w: int, h: int, cfg: Settings,
+                  scene: str = "stage") -> float:
+    """Escala APENAS o desenho, sem reduzi-lo pelos raios dos epiciclos.
 
-    Uma restrição adicional limita a soma dos raios de círculos destacados
-    para impedir que as cadeias X e Y saiam do enquadramento.
+    A figura ocupa a maior parte da região central do vídeo. Mantemos
+    margens para os textos no topo e as fórmulas na parte inferior.
     """
     width, height = np.ptp(analysis.original, axis=0)
-    drawing_region_w = w * .49
-    drawing_region_h = h * .46
-    base = min(cfg.target_fill_ratio * drawing_region_w / max(width, 1e-9),
-               cfg.target_fill_ratio * drawing_region_h / max(height, 1e-9))
-    def radius_budget(coeff):
-        k = _highlight_indices(coeff, min(cfg.visual_max_terms, analysis.n_terms))
-        return float(sum((1 if idx == len(coeff) - 1 else 2) * abs(coeff[idx]) for idx in k))
-    x_budget = radius_budget(analysis.coefficients_x)
-    y_budget = radius_budget(analysis.coefficients_y)
-    return min(base,
-               h * .145 / max(2 * x_budget, 1e-9),
-               w * .17 / max(2 * y_budget, 1e-9))
+    if scene in ("flash", "final"):
+        region_width, region_height = w * .82, h * .53
+    else:
+        region_width, region_height = w * .66, h * .47
+    return min(region_width / max(width, 1e-9),
+               region_height / max(height, 1e-9))
+
+
+def _circle_scale(analysis: Analysis, w: int, h: int, cfg: Settings,
+                  axis: str, n: int) -> float:
+    """Epiciclos usam painel próprio; t é idêntico ao do desenho.
+
+    A escala separada conserva a figura grande sem cortar os círculos.
+    Projeções são conectadas ao mesmo cursor por linhas tracejadas.
+    """
+    coeff = analysis.coefficients_x if axis == "x" else analysis.coefficients_y
+    indices = _highlight_indices(coeff, n)
+    total = sum((1 if k == len(coeff) - 1 else 2) * abs(coeff[k])
+                for k in indices)
+    if total < 1e-9:
+        return 1.0
+    radius_budget = h * .11 if axis == "x" else w * .14
+    return radius_budget / max(2 * total, 1e-9)
 
 
 def _hook(draw, cfg: Settings, elapsed: float):
@@ -186,36 +193,32 @@ def _draw_partial_paths(draw, points, labels, stop, project, color, width):
 
 def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
                  frame: int, total: int) -> Image.Image:
-    """Flash antecipatório, etapas completas de 3.5s e equação final."""
+    """Abertura central de 7s, ciclos imediatos e resultado grande central."""
     w, h = cfg.width, cfg.height
     stages = visual_stages(analysis, cfg)
     mode, n, phase, stage = stage_timing(frame, total, cfg, stages)
-    cx, cy = w * .70, h * .425
-    scale = _visual_scale(analysis, w, h, cfg)
+    scale = _visual_scale(analysis, w, h, cfg, scene=mode)
+    cx = w * (.50 if mode in ("flash", "final") else .65)
+    cy = h * (.405 if mode in ("flash", "final") else .415)
 
     def project(x, y):
         return (int(round(cx + x * scale)), int(round(cy - y * scale)))
 
     image = Image.new("RGB", (w, h), "#08090d")
     draw = ImageDraw.Draw(image)
+
     if mode in ("flash", "final"):
         glow = Image.new("RGB", (w, h), "#08090d")
         _paths(ImageDraw.Draw(glow), analysis.reconstructed,
-               labels, project, "#dca300", 11)
-        image = Image.blend(image, glow.filter(ImageFilter.GaussianBlur(14)), .75)
+               labels, project, "#dca300", max(12, w // 75))
+        image = Image.blend(image, glow.filter(ImageFilter.GaussianBlur(max(9, w // 75))), .75)
         draw = ImageDraw.Draw(image)
-        _paths(draw, analysis.reconstructed, labels, project, "#ffdc45", 4)
-
+        _paths(draw, analysis.reconstructed, labels, project, "#ffdc45", max(4, w // 210))
         if mode == "flash":
             _hook(draw, cfg, frame / cfg.fps)
             draw.text((w * .5, h * .73), "A matemática vai desenhar isso.",
                       anchor="mm", font=_font(max(19, w // 29), True),
                       fill="#fff1ae")
-            # Últimos instantes do flash escurecem antes do início do N=1.
-            length = max(1, round(cfg.flash_seconds * cfg.fps))
-            if length > 2 and frame >= max(0, length - 3):
-                image = Image.blend(image, Image.new("RGB", (w, h), "#08090d"),
-                                    (frame - (length - 3) + 1) / 3)
             return image
         error = analysis.error_percent
         n = analysis.n_terms
@@ -224,44 +227,44 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
                               analysis.coefficients_y, n, len(labels))
         error = float(analysis.error_history[n])
         _paths(draw, analysis.original, labels, project, "#32343c", 2)
-        # Progresso geométrico acompanha a MESMA fase t dos epiciclos.
         stop = len(labels) if phase >= 1.0 else max(
             2, int(round(phase * (len(labels) - 1))) + 1)
         if stop == len(labels):
-            _paths(draw, current, labels, project, "#ffd03b", 4)
+            _paths(draw, current, labels, project, "#ffd03b", max(4, w // 210))
         else:
             _draw_partial_paths(draw, current, labels, stop,
-                                project, "#ffd03b", 4)
+                                project, "#ffd03b", max(4, w // 210))
 
         x_value = axis_value(analysis.coefficients_x, n, phase)
         y_value = axis_value(analysis.coefficients_y, n, phase)
         px, py = project(x_value, y_value)
-        top = (cx + scale * analysis.coefficients_x[0].real, h * .19)
-        left = (w * .19, cy - scale * analysis.coefficients_y[0].real)
+
+        # Epiciclos em espaço auxiliar com escala independente. Ambos
+        # continuam usando exatamente o mesmo t da caneta.
+        x_scale = _circle_scale(analysis, w, h, cfg, "x", n)
+        y_scale = _circle_scale(analysis, w, h, cfg, "y", n)
+        top = (w * .64 + x_scale * analysis.coefficients_x[0].real, h * .14)
+        left = (w * .20, cy - y_scale * analysis.coefficients_y[0].real)
         x_end = _epicycles(draw, analysis.coefficients_x, n, phase,
-                           top, scale, "x", "#14bfd6")
+                           top, x_scale, "x", "#14bfd6")
         y_end = _epicycles(draw, analysis.coefficients_y, n, phase,
-                           left, scale, "y", "#90cf4c")
+                           left, y_scale, "y", "#90cf4c")
         _dashed(draw, (x_end.real, x_end.imag), (px, py), "#176c78")
         _dashed(draw, (y_end.real, y_end.imag), (px, py), "#557c31")
         draw.ellipse((px - 5, py - 5, px + 5, py + 5), fill="#fff1ae")
         draw.text((w*.5, h*.645),
-                  f"ETAPA {stage + 1}/{len(stages)}  -  1 volta completa por N",
+                  f"ETAPA {stage + 1}/{len(stages)}  -  1 volta por N",
                   anchor="mm", font=_font(max(18, w // 39)), fill="#989ca8")
 
     draw.text((w*.5, h*.70), f"N = {n}", anchor="mm",
               font=_font(max(34, w // 17), True), fill="#ffcf2f")
-    draw.text((w*.5, h*.75), f"error = {error:.5f}%", anchor="mm",
+    draw.text((w*.5, h*.75), f"Erro = {error:.5f}%", anchor="mm",
               font=_font(max(26, w // 25), True), fill="#f4f1e9")
     if mode == "final":
         draw.text((w*.5, h*.815), "x(t) = a0 + Σ Ak cos(2πkt + φk)",
                   anchor="mm", font=_font(max(19, w // 37), True), fill="#16cde1")
         draw.text((w*.5, h*.855), "y(t) = b0 + Σ Bk cos(2πkt + ψk)",
                   anchor="mm", font=_font(max(19, w // 37), True), fill="#8be25c")
-        note = (f"Animação: N <= {cfg.visual_max_terms}  |  "
-                f"solução precisa: N={analysis.n_terms}")
-        draw.text((w*.5, h*.90), note, anchor="mm",
-                  font=_font(max(16, w // 43)), fill="#b9b9c1")
     _hook(draw, cfg, frame / cfg.fps)
     draw.text((w*.5, h*.955), "FOURIER MOTION", anchor="mm",
               font=_font(max(18, w // 40)), fill="#8a8f9e")
