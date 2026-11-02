@@ -52,7 +52,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--min-contour-length", type=float, default=25.0)
     p.add_argument("--speed", default="medium")
     p.add_argument("--hook-text", default="", help="Gancho textual nos primeiros 3 segundos")
-    p.add_argument("--flash-seconds", type=float, default=0.5)
+    p.add_argument("--flash-seconds", type=float, default=7.0)
     p.add_argument("--cycle-seconds", type=float, default=3.5)
     p.add_argument("--target-fill-ratio", type=float, default=0.68)
     p.add_argument("--visual-max-terms", type=int, default=200,
