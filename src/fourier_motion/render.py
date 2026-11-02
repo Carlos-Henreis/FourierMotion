@@ -28,37 +28,31 @@ def _paths(draw, points, labels, project, color, width):
 
 
 def visual_stages(analysis: Analysis, cfg: Settings) -> tuple[int, ...]:
-    """Marcos fixos da animação; a convergência matemática continua independente."""
     limit = min(analysis.n_terms, cfg.visual_max_terms)
-    stages = sorted(set([1, limit] + [n for n in cfg.stage_terms if 1 <= n <= limit]))
-    return tuple(stages)
+    return tuple(sorted(set([1, analysis.n_terms] +
+                            [n for n in cfg.stage_terms if 1 <= n <= limit])))
 
 
 def stage_timing(frame: int, total: int, cfg: Settings, stages: tuple[int, ...]):
-    """7s de abertura, uma volta completa por N e resultado final sem pausas.
-
-    Não diluímos frames excedentes nos estágios. Assim que t chega a 1,
-    a próxima etapa começa imediatamente. O tempo restante do vídeo
-    pertence à tela de resultado, sem fingir que N<=200 convergiu.
-    """
     opening = round(cfg.flash_seconds * cfg.fps)
-    cycle_frames = max(2, round(cfg.cycle_seconds * cfg.fps))
-    final_minimum = round(cfg.final_seconds * cfg.fps)
-    required = opening + len(stages) * cycle_frames + final_minimum
+    transition = round(cfg.transition_seconds * cfg.fps)
+    cycle = max(2, round(cfg.cycle_seconds * cfg.fps))
+    required = opening + 2 * transition + len(stages) * cycle + round(cfg.final_seconds * cfg.fps)
     if required > total:
-        raise ValueError(
-            f"Duração insuficiente: {required / cfg.fps:.2f}s necessários "
-            f"para abertura, {len(stages)} ciclos e encerramento."
-        )
+        raise ValueError(f"Duração insuficiente: {required / cfg.fps:.2f}s necessários")
     if frame < opening:
         return ("flash", stages[-1], 1.0, -1)
-    step_frame = frame - opening
-    stage_index = step_frame // cycle_frames
-    if stage_index < len(stages):
-        local_frame = step_frame % cycle_frames
-        phase = local_frame / (cycle_frames - 1)
-        return ("stage", stages[stage_index], phase, stage_index)
-    return ("final", stages[-1], 1.0, len(stages) - 1)
+    if frame < opening + transition:
+        return ("transition_in", stages[0], (frame-opening) / max(1, transition-1), 0)
+    start = opening + transition
+    if frame < start + len(stages) * cycle:
+        index = (frame-start) // cycle
+        phase = ((frame-start) % cycle) / (cycle-1)
+        return ("stage", stages[index], phase, index)
+    start += len(stages) * cycle
+    if frame < start + transition:
+        return ("transition_out", stages[-1], (frame-start) / max(1, transition-1), len(stages)-1)
+    return ("final", stages[-1], 1.0, len(stages)-1)
 
 
 def _terms(coeff: np.ndarray, n: int, t: float) -> np.ndarray:
