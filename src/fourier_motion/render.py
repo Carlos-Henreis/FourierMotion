@@ -200,9 +200,15 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
     scale = _visual_scale(analysis, w, h, cfg, scene=mode)
     cx = w * (.50 if mode in ("flash", "final") else .65)
     cy = h * (.405 if mode in ("flash", "final") else .415)
+    # Mean subtraction is done before FFT. Visual bbox centering is a
+    # separate translation: mean and bbox midpoint are not necessarily equal.
+    bbox_min = np.min(analysis.original, axis=0)
+    bbox_max = np.max(analysis.original, axis=0)
+    bbox_mid_x, bbox_mid_y = (bbox_min + bbox_max) / 2.0
 
     def project(x, y):
-        return (int(round(cx + x * scale)), int(round(cy - y * scale)))
+        return (int(round(cx + (x - bbox_mid_x) * scale)),
+                int(round(cy - (y - bbox_mid_y) * scale)))
 
     image = Image.new("RGB", (w, h), "#08090d")
     draw = ImageDraw.Draw(image)
