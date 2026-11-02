@@ -30,31 +30,77 @@ def _paths(draw, points, labels, project, color, width):
 
 
 def visual_stages(analysis: Analysis, cfg: Settings) -> tuple[int, ...]:
-    limit = min(analysis.n_terms, cfg.visual_max_terms)
-    return tuple(sorted(set([1, analysis.n_terms] +
-                            [n for n in cfg.stage_terms if 1 <= n <= limit])))
+    """Return user milestones plus adaptive high-frequency bridges and true N*.
+
+    The automatic values depend on the actual spectral cutoff, not on a
+    specific input image. Geometric spacing helps avoid a final huge jump.
+    """
+    final_n = analysis.n_terms
+    limit = min(final_n, cfg.visual_max_terms)
+    stages = {1, final_n}
+    stages.update(n for n in cfg.stage_terms if 1 <= n <= limit)
+    if final_n > limit and final_n - limit >= 180:
+        # Up to two dynamic milestones between the highest visible cutoff
+        # and the mathematically converged solution.
+        for fraction in (1 / 3, 2 / 3):
+            value = round(limit * (final_n / limit) ** fraction)
+            if limit < value < final_n:
+                stages.add(value)
+    return tuple(sorted(stages))
+
+
+def _stage_boundaries(total: int, cfg: Settings, stages: tuple[int, ...]):
+    """Integer-frame partition; final starts exactly at total-final_frames."""
+    opening = round(cfg.flash_seconds * cfg.fps)
+    transition = round(cfg.transition_seconds * cfg.fps)
+    final_frames = round(cfg.final_seconds * cfg.fps)
+    end_cycles = total - transition - final_frames
+    start_cycles = opening + transition
+    available = end_cycles - start_cycles
+    count = len(stages)
+    if count == 0 or available < count * 2:
+        raise ValueError("Duração insuficiente para os ciclos de Fourier")
+    lengths = [((i + 1) * available // count - i * available // count)
+               for i in range(count)]
+    boundaries = [start_cycles]
+    for length in lengths:
+        boundaries.append(boundaries[-1] + length)
+    return opening, transition, boundaries, final_frames
 
 
 def stage_timing(frame: int, total: int, cfg: Settings, stages: tuple[int, ...]):
-    opening = round(cfg.flash_seconds * cfg.fps)
-    transition = round(cfg.transition_seconds * cfg.fps)
-    cycle = max(2, round(cfg.cycle_seconds * cfg.fps))
-    required = opening + 2 * transition + len(stages) * cycle + round(cfg.final_seconds * cfg.fps)
-    if required > total:
-        raise ValueError(f"Duração insuficiente: {required / cfg.fps:.2f}s necessários")
+    """Opening, transitions, paced cycles and an exact seven-second payoff.
+
+    Stages divide all the available time. Slow cycles or additional complete
+    revolutions are chosen per stage to fit its allotted integer frame budget.
+    """
+    opening, transition, boundaries, final_frames = _stage_boundaries(
+        total, cfg, stages)
     if frame < opening:
         return ("flash", stages[-1], 1.0, -1)
     if frame < opening + transition:
-        return ("transition_in", stages[0], (frame-opening) / max(1, transition-1), 0)
-    start = opening + transition
-    if frame < start + len(stages) * cycle:
-        index = (frame-start) // cycle
-        phase = ((frame-start) % cycle) / (cycle-1)
-        return ("stage", stages[index], phase, index)
-    start += len(stages) * cycle
-    if frame < start + transition:
-        return ("transition_out", stages[-1], (frame-start) / max(1, transition-1), len(stages)-1)
-    return ("final", stages[-1], 1.0, len(stages)-1)
+        return ("transition_in", stages[0],
+                (frame - opening) / max(1, transition - 1), 0)
+    if frame < boundaries[-1]:
+        index = int(np.searchsorted(boundaries[1:], frame, side="right"))
+        length = boundaries[index + 1] - boundaries[index]
+        position = frame - boundaries[index]
+        preferred = max(2, round(cfg.cycle_seconds * cfg.fps))
+        # For short stage slots, one slower revolution; when slots are long,
+        # show multiple full revolutions rather than leaving idle frames.
+        revolutions = max(1, round(length / preferred))
+        revolutions = min(revolutions, length // 2)
+        revolution_index = min(revolutions - 1, position * revolutions // length)
+        begin = revolution_index * length // revolutions
+        end = (revolution_index + 1) * length // revolutions
+        phase = (position - begin) / max(1, end - begin - 1)
+        return ("stage", stages[index], min(1.0, phase), index)
+    transition_start = boundaries[-1]
+    if frame < transition_start + transition:
+        return ("transition_out", stages[-1],
+                (frame - transition_start) / max(1, transition - 1),
+                len(stages) - 1)
+    return ("final", stages[-1], 1.0, len(stages) - 1)
 
 
 def _terms(coeff: np.ndarray, n: int, t: float) -> np.ndarray:
