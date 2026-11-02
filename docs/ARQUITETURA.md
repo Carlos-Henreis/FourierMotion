@@ -84,3 +84,37 @@ Testes de sinal circular validam N=1, frequências altas verificam corte e conve
 3. JSON reprodutível com as duas séries numéricas.
 4. Duração e geometria parametrizáveis, padrão de 60 s em 1080x1920.
 5. Código em módulos e testes de matemática sem depender da renderização.
+
+## Evolução visual por ciclos completos (revisão)
+
+### Feedback observado no vídeo de 60 segundos
+
+No renderizador anterior, N aumentava continuamente e a fase era calculada a partir do tempo de vídeo, independentemente da transição entre ordens. O resultado era um traçado parcialmente exibido para cada N, sem mostrar a forma fechada correspondente. A cadeia de Y usava uma rotação de +90° no sistema de tela, apesar de as coordenadas Y da imagem crescerem para cima, criando aparente dessincronização. A geometria ocupava a margem esquerda fora do enquadramento.
+
+### Novo escalonamento temporal
+
+- Da duração útil (duração total menos segundos de tela final), derivamos um orçamento de frames.
+- sample_harmonics cria até 48 N distintos, espaçados geometricamente de 1 até o menor N que converge.
+- Cada N tem sua própria janela de frames e percorre t de 0 a 1, **uma volta inteira**.
+- Na parte final da janela, a curva completa permanece visível antes de passar ao próximo N.
+- A sequência não pretende exibir todos os inteiros até N final. Isso tornaria inviável mostrar uma volta inteira por N em um vídeo de 60 segundos.
+- A busca matemática por N continua exaustiva: apenas a **apresentação** usa amostragem.
+
+### Sincronização de X e Y
+
+Ambas as séries usam o mesmo t. Em uma janela de N fixo, a ponta das cadeias satisfaz:
+
+    x_pixel = cx + scale * x_N(t)
+    y_pixel = cy - scale * y_N(t)
+
+A cadeia X adiciona o vetor 2·Cx_k·exp(i 2πkt) na tela; a cadeia Y rotaciona cada vetor com -i, de modo que sua componente vertical seja -2·Re(Cy_k·exp(i2πkt)). O termo constante DC desloca a origem de cada cadeia. A frequência de Nyquist não é duplicada. Assim as linhas tracejadas devem terminar exatamente sobre as projeções do ponto reconstruído.
+
+### Enquadramento e legibilidade
+
+A figura foi deslocada para aproximadamente 70% da largura do canvas, preservando a faixa esquerda para os epiciclos verdes. A escala é limitada pela largura/altura disponível e pela soma dos oito maiores raios apresentados em cada eixo. O objetivo é impedir que círculos relevantes ultrapassem as bordas.
+
+Para manter a tela legível com centenas de harmônicos, desenhamos apenas os **oito círculos mais significativos** de cada eixo, mais um vetor residual que agrega os demais termos. A soma de TODOS os termos ainda participa de x_N(t) e y_N(t); portanto a precisão matemática e a posição da projeção não são afetadas pela simplificação visual. Esse residual é um segmento, não uma harmônica independente, e não deve ser interpretado como um nono coeficiente Fourier.
+
+### Testes de regressão
+
+tests/test_render.py verifica a progressão amostrada, a volta completa por etapa, a sincronia numérica das projeções X/Y em diferentes fases e a geração de um frame com dimensão correta.
