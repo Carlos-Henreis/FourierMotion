@@ -18,6 +18,7 @@ class Settings:
     target_fill_ratio: float = 0.68
     cycle_seconds: float = 3.5
     flash_seconds: float = 7.0
+    transition_seconds: float = 0.4
     visual_max_terms: int = 200
     stage_terms: tuple[int, ...] = (1, 2, 5, 15, 40, 100, 150, 200)
     hook_text: str = ""
@@ -41,6 +42,8 @@ class Settings:
             raise ValueError("--cycle-seconds deve ficar entre 2.5 e 6")
         if not 0 <= self.flash_seconds < self.duration - self.final_seconds:
             raise ValueError("--flash-seconds deve deixar tempo para a animação e a tela final")
+        if not 0 <= self.transition_seconds <= 2.0:
+            raise ValueError("--transition-seconds deve ficar entre 0 e 2")
         if not 1 <= self.visual_max_terms <= self.samples // 2:
             raise ValueError("--visual-max-terms deve ficar entre 1 e samples/2")
         if not self.stage_terms or any(n < 1 for n in self.stage_terms):
