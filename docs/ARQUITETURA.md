@@ -195,3 +195,54 @@ sincronizada de X/Y, enquadramento e erro para duração insuficiente.
 A fidelidade da reconstrução continua sendo avaliada sobre pontos e não pixels.
 A posição da caneta deriva da mesma fase usada pelos dois epiciclos e a
 linha tracejada termina na projeção do ponto de Fourier.
+
+
+## Ajuste visual: desenhos maiores e cadência sem espera (revisão seguinte)
+
+Após avaliar capturas do boneco de palito, descobrimos que o pequeno tamanho
+não vinha de pouca resolução da imagem: a escala do desenho estava
+artificialmente limitada pelos raios dos epiciclos. Isso deixava o boneco
+minúsculo no resultado mesmo havendo centenas de pixels livres.
+
+### Layout independente por cena
+
+- **Abertura:** 7 segundos, reconstrução final centralizada em (50%, 40,5%)
+  do quadro, com escala baseada no bounding box visando usar até 82% da
+  largura e 53% da altura do canvas. O texto superior permanece na mesma área.
+- **Ciclos:** desenho em (65%, 41,5%), usando até 66% da largura e 47% da
+  altura. O fundo mantém o contorno original em cinza, o desenho parcial em
+  dourado, e epiciclos nas áreas superior e esquerda.
+- **Resultado:** reconstrução completa grande no centro, mesmas dimensões
+  da abertura; abaixo continuam N, Erro e as duas fórmulas, mas removemos o
+  rodapé explicativo sobre corte visual N<=200.
+
+As cadeias X e Y agora têm **escalas auxiliares independentes**, limitadas
+pelo espaço disponível para os círculos. Seus relógios e coeficientes seguem
+exatamente a mesma variável t do desenho. Linhas tracejadas fazem a ligação
+visual dos ponteiros ao ponto traçado. Como os painéis usam escalas
+diferentes, suas projeções de tela não são mais numericamente iguais a
+x_pixel/y_pixel: a sincronização é temporal e matemática, não um sistema
+único de coordenadas de pixels.
+
+### Cadência contínua
+
+Antes, o tempo livre entre o fim das voltas e a tela final era repartido
+em **esperas** após cada N. A nova timeline é:
+
+    0..7s         abertura centralizada
+    7..35s        oito voltas consecutivas, 3,5s cada
+    35..60s       reconstrução final ampliada e fórmulas
+
+Os estágios são consecutivos: ao terminar um ciclo, o próximo inicia já
+no frame seguinte. O tempo restante do vídeo vertical de 60 segundos é
+destinado ao resultado final, preservando a duração sem desacelerar a caneta.
+`--final-seconds` define o *mínimo* reservado para o final, não necessariamente
+sua duração exata. O vídeo não finge que o corte visual de N=200 atende à
+tolerância de precisão: o valor final mostrado continua sendo o N* completo,
+validado antes da renderização.
+
+### Localização
+
+O indicador visível agora é **Erro**, com os mesmos dados e métrica
+numérica do analisador. O nome da chave JSON `error_percent` foi mantido
+por compatibilidade.
