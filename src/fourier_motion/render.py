@@ -284,8 +284,11 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
         image = Image.blend(image, glow.filter(ImageFilter.GaussianBlur(max(9, w // 75))), .75)
         draw = ImageDraw.Draw(image)
         _paths(draw, scene_points, labels, project, "#ffdc45", max(4, w // 210))
-        _dotted_connectors(draw, scene_points, labels, project,
-                           "#36ccdf", width=max(2, w // 400))
+        # Abertura = somente a imagem original: sem ligações auxiliares.
+        # A cena final revela as conexões necessárias em cinza pontilhado.
+        if mode == "final":
+            _dotted_connectors(draw, scene_points, labels, project,
+                               "#8b9098", width=max(2, w // 400))
         if mode == "flash":
             _hook(draw, cfg, frame / cfg.fps)
             draw.text((w * .5, h * .73), "A matemática vai desenhar isso.",
@@ -300,7 +303,7 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
         error = float(analysis.error_history[n])
         _paths(draw, analysis.original, labels, project, "#32343c", 2)
         _dotted_connectors(draw, analysis.original, labels, project,
-                           "#315d64", width=2)
+                           "#555960", width=2)
         stop = len(labels) if phase >= 1.0 else max(
             2, int(round(phase * (len(labels) - 1))) + 1)
         if stop == len(labels):
@@ -325,7 +328,7 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
                            left, y_scale, "y", "#90cf4c")
         _dashed(draw, (x_end.real, x_end.imag), (px, py), "#176c78")
         _dashed(draw, (y_end.real, y_end.imag), (px, py), "#557c31")
-        _dotted_connectors(draw, current, labels, project, "#36ccdf",
+        _dotted_connectors(draw, current, labels, project, "#8b9098",
                            width=max(2, w // 400), stop=stop)
         draw.ellipse((px - 5, py - 5, px + 5, py + 5), fill="#fff1ae")
 
