@@ -64,3 +64,32 @@ def test_ffmpeg_mux_smoke(tmp_path):
     )
     assert "h264" in probe.stdout
     assert "aac" in probe.stdout
+
+
+def test_random_audio_directory_and_reproducibility(tmp_path):
+    from fourier_motion.audio import choose_audio
+
+    for name in ("01_ambient.mp3", "02_synthwave.mp3", "03_lofi.mp3",
+                 "04_cinematic.mp3", "05_chiptune.mp3"):
+        (tmp_path / name).write_bytes(b"audio-placeholder")
+    (tmp_path / "README.txt").write_text("ignore")
+    first = choose_audio(audio_dir=tmp_path, audio_seed=2026)
+    second = choose_audio(audio_dir=tmp_path, audio_seed=2026)
+    assert first == second
+    assert first.suffix == ".mp3"
+    observed = {choose_audio(audio_dir=tmp_path, audio_seed=i).name for i in range(60)}
+    assert len(observed) == 5
+
+
+def test_audio_choice_rejects_conflicting_and_missing_inputs(tmp_path):
+    from fourier_motion.audio import choose_audio
+
+    song = tmp_path / "one.mp3"
+    song.write_bytes(b"audio-placeholder")
+    assert choose_audio(audio=song) == song.resolve()
+    with pytest.raises(ValueError, match="OU"):
+        choose_audio(audio=song, audio_dir=tmp_path)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(ValueError, match="Nenhuma trilha"):
+        choose_audio(audio_dir=empty)
