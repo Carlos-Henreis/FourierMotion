@@ -248,7 +248,7 @@ guloso escolhe o próximo contorno mais próximo e gira seu ponto inicial para
 diminuir a distância da ligação. O trajeto também retorna ao início no
 último segmento, pois a série de Fourier é periódica. As ligações
 integram o sinal amostrado e a análise espectral, mas são identificadas por
-IDs negativos para serem exibidas como **linhas pontilhadas ciano** em vez
+IDs negativos para serem exibidas como **linhas pontilhadas cinza** em vez
 de traços sólidos amarelos.
 
 O traço original permanece amarelo; apenas os movimentos entre contornos
@@ -268,3 +268,17 @@ regiões. Apenas escolhe conexões relativamente curtas e torna essas
 conexões explícitas. As curvas são reamostradas por comprimento de arco
 para que os coeficientes descrevam a trajetória única a velocidade de
 percurso aproximadamente constante.
+
+
+### Cores e cenas do modo contínuo
+
+A primeira cena (**7 segundos**) é uma prévia dos **contornos originais**
+extraídos da imagem; não é a reconstrução final por Fourier. Portanto,
+ela **não mostra conectores**, mesmo com `--continuous-path`.
+A segunda cena exibe os ciclos com os conectores em **cinza pontilhado**,
+enquanto os traços reconstruídos permanecem amarelos.
+A terceira cena exibe o resultado reconstruído e mantém somente as
+ligações de percurso necessárias em **cinza pontilhado**.
+
+A cor padrão das ligações foi alterada de ciano para cinza, sem mudar
+os coeficientes, o erro de reconstrução ou o caminho percorrido.
