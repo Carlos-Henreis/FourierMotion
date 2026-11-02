@@ -50,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--duration", type=float, default=60.0)
     p.add_argument("--width", type=int, default=1080)
     p.add_argument("--height", type=int, default=1920)
-    p.add_argument("--final-seconds", type=float, default=6.0)
+    p.add_argument("--final-seconds", type=float, default=7.0)
     p.add_argument("--min-contour-length", type=float, default=25.0)
     p.add_argument("--speed", default="medium")
     p.add_argument("--hook-text", default="", help="Gancho textual nos primeiros 3 segundos")
