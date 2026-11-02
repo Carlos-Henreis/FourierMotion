@@ -282,3 +282,61 @@ ligações de percurso necessárias em **cinza pontilhado**.
 
 A cor padrão das ligações foi alterada de ciano para cinza, sem mudar
 os coeficientes, o erro de reconstrução ou o caminho percorrido.
+
+
+## Timeline adaptativa: payoff apenas nos últimos 7 segundos
+
+Esta revisão corrige a chegada prematura do resultado final (antes, perto
+do segundo 39), que deixava muito tempo parado em um Reel/TikTok de 60 s.
+
+Para o padrão de **60 s, 30 FPS, abertura 7 s e transições de 0,4 s**:
+
+| Faixa | Conteúdo |
+|---|---|
+| 0–7 s | Prévia do contorno original e texto inicial |
+| 7–7,4 s | Transição vibrante para os epiciclos |
+| 7,4–52,6 s | Evolução por N: **45,2 s** de animação sem tempo ocioso |
+| 52,6–53 s | Transição para o payoff |
+| 53–60 s | **Resultado final exato**, fórmula e erro |
+
+Os 45,2 segundos ficam próximos da meta de ~43 s, mas utilizam também o
+tempo que antes sobrava parado; a duração total continua fixa em 60 s.
+O começo do resultado final depende do argumento `--final-seconds`, cujo
+padrão agora é **7**. A duração é exata em frames, incluindo arredondamentos
+para FPS não padrão.
+
+O número de frames da animação é dividido entre todos os N selecionados.
+Quando há poucos N, cada estágio pode realizar duas ou mais voltas
+completas. Quando há muitos estágios, uma volta fica mais lenta: a fase
+`t` continua sempre percorrendo 0..1 por ciclo, sem manter a caneta imóvel
+à espera da próxima etapa.
+
+### Marcos intermediários calculados, não fixados para um emoji
+
+O programa mantém os marcos conhecidos, mas, se o N real ultrapassar o
+limite visual (200) por pelo menos 180 termos, acrescenta **até dois**
+marcos calculados por interpolação geométrica entre 200 e N final:
+
+```python
+n_extra_1 = round(n_visual * (N_final / n_visual) ** (1 / 3))
+n_extra_2 = round(n_visual * (N_final / n_visual) ** (2 / 3))
+```
+
+Por exemplo, para `N_final=997`, os novos pontos ficam perto de 342
+e 585 (valores inteiros arredondados), antes do último ciclo de N=997.
+Eles **não alteram a busca espectral** nem o critério de convergência,
+apenas distribuem os momentos visuais.
+
+Abertura, transições e resultado são planejados em frames inteiros.
+Quando a duração é insuficiente para manter todos os estágios e os
+segundos de payoff, a execução falha explicitamente.
+
+Exemplo:
+
+```bash
+fourier-motion desenho.png --output output/reel.mp4 --error 0.005 \
+  --hook-text "Como o Fourier desenharia um emoji?" --continuous-path
+```
+
+O modo contínuo e os conectores cinza pontilhados continuam independentes
+desta alteração de timeline.
