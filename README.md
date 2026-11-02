@@ -340,3 +340,25 @@ fourier-motion desenho.png --output output/reel.mp4 --error 0.005 \
 
 O modo contínuo e os conectores cinza pontilhados continuam independentes
 desta alteração de timeline.
+
+
+## Refinamento visual para desenhos detalhados
+
+O renderizador adapta a espessura a partir do número de contornos reais
+(`path_ids >= 0`). Para desenhos com pelo menos **12 contornos**,
+como ilustrações de personagens complexos, reduz a linha dourada para
+aproximadamente **2 px em 1080p**, o glow para cerca de **5–6 px**,
+o blur para **6 px** e sua intensidade para **40%** da composição.
+Desenhos simples continuam com a espessura e brilho mais expressivos.
+Conectores com IDs negativos não aumentam artificialmente a contagem
+de complexidade.
+
+No modo `--continuous-path`, a análise matemática ainda inclui todos os
+deslocamentos para manter a trajetória Fourier realmente contínua,
+**mas a apresentação esconde as ligações pontilhadas durante todos os
+ciclos**, mesmo quando a ponta atravessa essas regiões. A abertura também
+não mostra essas ligações. **Somente a cena final** exibe linhas de
+deslocamento, agora em cinza claro com opacidade aproximada de **18%**
+(46/255). Elas são compostas em camada RGBA e não alteram a curva
+nem o valor do erro. O resultado fica mais limpo, principalmente em
+imagens com muitos detalhes próximos.
