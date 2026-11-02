@@ -126,13 +126,13 @@ Leia [Arquitetura](docs/ARQUITETURA.md) e [Matemática](docs/MATEMATICA.md) para
 ## Vídeo TikTok: gancho visual e evolução mais lenta
 
 O formato padrão continua **1080x1920, 30 FPS e 60 segundos**, mas o
-renderizador agora usa **0,5s de flash inicial**, um texto de gancho
+renderizador agora usa **7s de abertura centralizada**, um texto de gancho
 parametrizável, e um ciclo completo de **3,5s para cada N**.
 
 ```bash
 fourier-motion imagem.png --output output/tiktok.mp4 \
   --hook-text "Transformando o Smile em uma equação de Fourier" \
-  --flash-seconds 0.5 --cycle-seconds 3.5 \
+  --flash-seconds 7 --cycle-seconds 3.5 \
   --stage-terms 1,2,5,15,40,100,150,200 \
   --visual-max-terms 200 --target-fill-ratio 0.68
 ```
@@ -160,3 +160,39 @@ aplicação falha explicitamente, em vez de cortar uma volta.
 Os valores podem ser alterados no terminal com `--help`. Os detalhes de
 tempo, escala e distinção entre precisão matemática e limitação visual
 estão em [ARQUITETURA.md](docs/ARQUITETURA.md).
+
+
+## Revisão de layout — boneco de palito e desenhos pequenos
+
+A versão atual aumenta significativamente o desenho nos três momentos:
+
+- **0–7 segundos:** o contorno final fica grande e centralizado, com o
+  gancho original no topo. O exemplo de boneco de palito não deve mais
+  ficar reduzido a poucas dezenas de pixels.
+- **Ciclos:** a figura ocupa uma região maior à direita, e os epiciclos
+  ficam nos espaços superior/esquerdo. Para não reduzir o boneco pelo
+  raio dos círculos, os epiciclos usam escala auxiliar própria, mas
+  continuam sincronizados pelo mesmo parâmetro temporal `t`.
+- **Encerramento:** contorno final ampliado e centralizado; o texto
+  `Erro = ...%` aparece em português; o rodapé
+  `Animação: N <= 200...` não é mais mostrado.
+
+Cada marco recebe **uma volta de 3,5 segundos**. Assim que termina,
+o próximo N começa imediatamente, sem pausas artificiais.
+A duração continua sendo 60 segundos; o tempo que sobra depois
+dos ciclos fica com a exibição da figura final e a fórmula.
+O parâmetro `--final-seconds` reserva um tempo **mínimo**, não fixa
+a duração exata da cena final.
+
+Exemplo:
+
+```bash
+fourier-motion desenho.png --output output/reel.mp4 --error 0.005 \
+  --hook-text "Como o Fourier desenharia um boneco de palito?"
+```
+
+A centralização matemática (subtração da média antes da FFT) continua
+inalterada. O centro **visual** agora usa o ponto médio do bounding box,
+que não é necessariamente igual à média das amostras. A meta de escala
+é calculada pelo bounding box e limitada pela área disponível, evitando
+cortes em desenhos com proporções diferentes.
