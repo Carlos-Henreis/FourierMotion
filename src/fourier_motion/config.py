@@ -10,7 +10,7 @@ class Settings:
     duration: float = 60.0
     width: int = 1080
     height: int = 1920
-    final_seconds: float = 6.0
+    final_seconds: float = 7.0
     max_terms: int | None = None
     min_contour_length: float = 25.0
     max_contours: int = 128
