@@ -121,3 +121,42 @@ A CI do GitHub Actions executa os testes em cada push e pull request.
 - **Fonte sonora não incluída**; o MP4 gerado é silencioso.
 
 Leia [Arquitetura](docs/ARQUITETURA.md) e [Matemática](docs/MATEMATICA.md) para detalhes e justificativas.
+
+
+## Vídeo TikTok: gancho visual e evolução mais lenta
+
+O formato padrão continua **1080x1920, 30 FPS e 60 segundos**, mas o
+renderizador agora usa **0,5s de flash inicial**, um texto de gancho
+parametrizável, e um ciclo completo de **3,5s para cada N**.
+
+```bash
+fourier-motion imagem.png --output output/tiktok.mp4 \
+  --hook-text "Transformando o Smile em uma equação de Fourier" \
+  --flash-seconds 0.5 --cycle-seconds 3.5 \
+  --stage-terms 1,2,5,15,40,100,150,200 \
+  --visual-max-terms 200 --target-fill-ratio 0.68
+```
+
+As etapas mostradas são **marcos fixos**. A duração útil restante é dividida
+em pausas após cada volta completa: os pontos não são percorridos de modo
+acelerado para encaixar dezenas de incrementos de N.
+
+**N visual e N matemático não são a mesma coisa:** o limite visual de 200
+reduz complexidade e melhora a leitura; a análise continua encontrando o
+menor N que efetivamente satisfaz **erro < 0,05%**. Se a figura precisa de
+973 harmônicos, o vídeo progride até 200 e a tela final revela N=973 e seu
+erro real. O arquivo JSON preserva todos os coeficientes necessários.
+
+A escala usa o bounding box da geometria já **centralizada antes da FFT** e
+procura ocupar cerca de 68% da região reservada ao desenho. A figura permanece
+à direita para abrir espaço à cadeia de epiciclos verdes, e a escala pode
+ser reduzida adicionalmente para preservar os círculos visíveis.
+
+Aos 0,5 segundos iniciais o espectador vê o resultado final de forma
+antecipada; o texto aparece nos primeiros 3 segundos (quando fornecido).
+Se o vídeo for curto demais para completar todos os ciclos configurados, a
+aplicação falha explicitamente, em vez de cortar uma volta.
+
+Os valores podem ser alterados no terminal com `--help`. Os detalhes de
+tempo, escala e distinção entre precisão matemática e limitação visual
+estão em [ARQUITETURA.md](docs/ARQUITETURA.md).
