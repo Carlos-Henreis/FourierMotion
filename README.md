@@ -362,3 +362,51 @@ deslocamento, agora em cinza claro com opacidade aproximada de **18%**
 (46/255). Elas são compostas em camada RGBA e não alteram a curva
 nem o valor do erro. O resultado fica mais limpo, principalmente em
 imagens com muitos detalhes próximos.
+
+
+## Trilha sonora: cinco gêneros com seleção aleatória
+
+O FourierMotion aceita áudio local e também escolhe **aleatoriamente uma
+faixa por vídeo** quando você informa uma pasta. Use músicas originais ou
+com licença apropriada para TikTok/Instagram.
+
+Cinco composições originais de **60 segundos** foram produzidas para o
+projeto: `01_ambient`, `02_synthwave`, `03_lofi`,
+`04_orchestral` e `05_chiptune`. Cada uma tem MIDI editável e MP3
+para exportação. As trilhas começam em Ré menor, 120 BPM, com virada
+musical no segundo 53, correspondente ao payoff visual.
+
+Extraia os cinco MP3s numa pasta `soundtracks/` no repositório
+(`soundtracks/` fica fora do versionamento por padrão).
+Então execute:
+
+```bash
+fourier-motion desenho.png --output output/reel.mp4 --error 0.005 \
+  --hook-text "Como o Fourier desenharia o Luffy?" \
+  --continuous-path --audio-dir soundtracks
+```
+
+A cada execução, uma faixa é selecionada com probabilidade uniforme
+entre os arquivos WAV/MP3/M4A/AAC/FLAC/OGG da pasta. O terminal registra
+o nome selecionado antes da renderização. Para repetir a mesma escolha:
+
+```bash
+fourier-motion desenho.png --audio-dir soundtracks --audio-seed 42
+```
+
+Para escolher manualmente:
+
+```bash
+fourier-motion desenho.png --audio soundtracks/02_synthwave.mp3
+```
+
+Não combine `--audio` e `--audio-dir`. O algoritmo de seleção ignora
+arquivos MIDI e textos; exporte os arquivos MIDI como áudio antes de usar.
+O FFmpeg codifica em AAC, corta faixas longas ou preenche faixas curtas
+para preservar exatamente os 60 segundos de vídeo. O áudio começa em
+00:00, portanto a virada gravada aos 53 segundos acompanha o encerramento
+na configuração padrão (`--duration 60 --final-seconds 7`).
+Se você alterar esses valores, será necessário adaptar a trilha também.
+
+Os arquivos de áudio não precisam estar no repositório Git:
+você pode manter uma biblioteca local e escolher diferentes faixas a cada Reel.
