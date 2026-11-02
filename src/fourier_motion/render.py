@@ -132,7 +132,9 @@ def _visual_scale(analysis: Analysis, w: int, h: int, cfg: Settings,
     margens para os textos no topo e as fórmulas na parte inferior.
     """
     width, height = np.ptp(analysis.original, axis=0)
-    if scene in ("flash", "final"):
+    if scene == "flash":
+        region_width, region_height = w * .74, h * .40
+    elif scene == "final":
         region_width, region_height = w * .82, h * .53
     else:
         region_width, region_height = w * .66, h * .47
@@ -158,7 +160,7 @@ def _circle_scale(analysis: Analysis, w: int, h: int, cfg: Settings,
 
 
 def _hook(draw, cfg: Settings, elapsed: float):
-    if not cfg.hook_text or elapsed >= 3.0:
+    if not cfg.hook_text or elapsed >= cfg.flash_seconds:
         return
     # Wrap to avoid clipping long dynamic captions.
     import textwrap
@@ -185,15 +187,46 @@ def _draw_partial_paths(draw, points, labels, stop, project, color, width):
             draw.line([project(*p) for p in sub], fill=color, width=width, joint="curve")
 
 
+def _vibrant_transition(before: Image.Image, after: Image.Image,
+                        progress: float) -> Image.Image:
+    """Crossfade com zoom discreto e pulso dourado, sem tela branca agressiva."""
+    p = float(np.clip(progress, 0.0, 1.0))
+    smooth = p * p * (3.0 - 2.0 * p)
+    blended = Image.blend(before, after, smooth)
+    pulse = np.sin(np.pi * p)
+    if pulse > 0:
+        warm = Image.new("RGB", blended.size, "#ffce45")
+        blended = Image.blend(blended, warm, float(0.20 * pulse))
+        w, h = blended.size
+        border = int(round(min(w, h) * 0.012 * pulse))
+        if border > 0:
+            blended = blended.crop((border, border, w-border, h-border)).resize(
+                (w, h), Image.Resampling.BICUBIC)
+    return blended
+
+
 def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
-                 frame: int, total: int) -> Image.Image:
+                 frame: int, total: int, _override=None) -> Image.Image:
     """Abertura central de 7s, ciclos imediatos e resultado grande central."""
     w, h = cfg.width, cfg.height
     stages = visual_stages(analysis, cfg)
-    mode, n, phase, stage = stage_timing(frame, total, cfg, stages)
+    mode, n, phase, stage = (stage_timing(frame, total, cfg, stages)
+                             if _override is None else _override)
+    if mode in ("transition_in", "transition_out"):
+        if mode == "transition_in":
+            before = render_frame(analysis, labels, cfg, frame, total,
+                                  ("flash", analysis.n_terms, 1.0, -1))
+            after = render_frame(analysis, labels, cfg, frame, total,
+                                 ("stage", stages[0], 0.0, 0))
+        else:
+            before = render_frame(analysis, labels, cfg, frame, total,
+                                  ("stage", stages[-1], 1.0, len(stages)-1))
+            after = render_frame(analysis, labels, cfg, frame, total,
+                                 ("final", analysis.n_terms, 1.0, len(stages)-1))
+        return _vibrant_transition(before, after, phase)
     scale = _visual_scale(analysis, w, h, cfg, scene=mode)
     cx = w * (.50 if mode in ("flash", "final") else .65)
-    cy = h * (.405 if mode in ("flash", "final") else .415)
+    cy = h * (.44 if mode == "flash" else .405 if mode == "final" else .415)
     # Mean subtraction is done before FFT. Visual bbox centering is a
     # separate translation: mean and bbox midpoint are not necessarily equal.
     bbox_min = np.min(analysis.original, axis=0)
@@ -209,11 +242,12 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
 
     if mode in ("flash", "final"):
         glow = Image.new("RGB", (w, h), "#08090d")
-        _paths(ImageDraw.Draw(glow), analysis.reconstructed,
+        scene_points = analysis.original if mode == "flash" else analysis.reconstructed
+        _paths(ImageDraw.Draw(glow), scene_points,
                labels, project, "#dca300", max(12, w // 75))
         image = Image.blend(image, glow.filter(ImageFilter.GaussianBlur(max(9, w // 75))), .75)
         draw = ImageDraw.Draw(image)
-        _paths(draw, analysis.reconstructed, labels, project, "#ffdc45", max(4, w // 210))
+        _paths(draw, scene_points, labels, project, "#ffdc45", max(4, w // 210))
         if mode == "flash":
             _hook(draw, cfg, frame / cfg.fps)
             draw.text((w * .5, h * .73), "A matemática vai desenhar isso.",
@@ -252,9 +286,6 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
         _dashed(draw, (x_end.real, x_end.imag), (px, py), "#176c78")
         _dashed(draw, (y_end.real, y_end.imag), (px, py), "#557c31")
         draw.ellipse((px - 5, py - 5, px + 5, py + 5), fill="#fff1ae")
-        draw.text((w*.5, h*.645),
-                  f"ETAPA {stage + 1}/{len(stages)}  -  1 volta por N",
-                  anchor="mm", font=_font(max(18, w // 39)), fill="#989ca8")
 
     draw.text((w*.5, h*.70), f"N = {n}", anchor="mm",
               font=_font(max(34, w // 17), True), fill="#ffcf2f")
