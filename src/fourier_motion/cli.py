@@ -8,7 +8,7 @@ from .contours import extract_contours
 from .continuous import make_continuous
 from .fourier import analyze
 from .render import render_video
-from .audio import validate_audio
+from .audio import choose_audio
 
 
 def save_coefficients(path: Path, result, continuous_path: bool = False) -> None:
@@ -65,7 +65,11 @@ def main(argv: list[str] | None = None) -> int:
                    default=(1, 2, 5, 15, 40, 100, 150, 200))
     p.add_argument("--continuous-path", action="store_true",
                    help="Trajetória única com conexões pontilhadas entre contornos")
-    p.add_argument("--audio", type=Path, help="Trilha WAV/MP3/M4A para sincronizar ao vídeo")
+    p.add_argument("--audio", type=Path, help="Trilha WAV/MP3/M4A específica")
+    p.add_argument("--audio-dir", type=Path,
+                   help="Escolhe aleatoriamente um áudio da pasta a cada vídeo")
+    p.add_argument("--audio-seed", type=int,
+                   help="Semente opcional para repetir a mesma escolha")
     p.add_argument("--analyze-only", action="store_true")
     args = p.parse_args(argv)
     cfg = Settings(samples=args.samples, threshold_percent=args.error, fps=args.fps,
@@ -79,7 +83,9 @@ def main(argv: list[str] | None = None) -> int:
                    visual_max_terms=args.visual_max_terms,
                    stage_terms=args.stage_terms)
     cfg.validate()
-    soundtrack = validate_audio(args.audio)
+    soundtrack = choose_audio(args.audio, args.audio_dir, args.audio_seed)
+    if soundtrack is not None and not args.analyze_only:
+        print(f"Trilha selecionada: {soundtrack.name}", flush=True)
     contours = extract_contours(args.image, cfg.samples, cfg.min_contour_length,
                                 cfg.max_contours)
     if args.continuous_path:
