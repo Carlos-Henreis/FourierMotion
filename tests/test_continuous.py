@@ -74,7 +74,7 @@ def test_continuous_video_frame_renders(tmp_path):
     assert image.size == (540, 960)
 
 
-def test_opening_has_no_bridges_and_other_scenes_use_gray(tmp_path, monkeypatch):
+def test_only_payoff_uses_faint_connectors(tmp_path, monkeypatch):
     import fourier_motion.render as renderer
 
     signal = make_continuous(_two_squares(tmp_path))
@@ -85,21 +85,50 @@ def test_opening_has_no_bridges_and_other_scenes_use_gray(tmp_path, monkeypatch)
     actual = renderer._dotted_connectors
 
     def spy(*args, **kwargs):
-        calls.append((kwargs.get("color", args[4] if len(args) > 4 else None),
-                      kwargs.get("stop")))
+        calls.append(kwargs.get("color", args[4] if len(args) > 4 else None))
         return actual(*args, **kwargs)
 
     monkeypatch.setattr(renderer, "_dotted_connectors", spy)
     total = round(cfg.duration * cfg.fps)
 
     renderer.render_frame(analysis, signal.path_ids, cfg, 0, total)
-    assert calls == []  # Abertura só mostra o contorno original.
+    assert not calls  # Original teaser: no connectors.
+
+    stages = renderer.visual_stages(analysis, cfg)
+    frame = round((cfg.flash_seconds + cfg.transition_seconds + 1) * cfg.fps)
+    assert renderer.stage_timing(frame, total, cfg, stages)[0] == "stage"
+    renderer.render_frame(analysis, signal.path_ids, cfg, frame, total)
+    assert not calls  # No bridges during pen tracing, even for continuous path.
 
     renderer.render_frame(analysis, signal.path_ids, cfg, total - 1, total)
-    assert calls == [("#8b9098", None)]
+    assert calls == [(160, 165, 173, 46)]
 
-    calls.clear()
-    frame = round((cfg.flash_seconds + cfg.transition_seconds + 1) * cfg.fps)
-    renderer.render_frame(analysis, signal.path_ids, cfg, frame, total)
-    assert all(color in {"#555960", "#8b9098"} for color, _ in calls)
-    assert len(calls) == 2
+
+def test_strokes_get_thinner_for_detailed_art():
+    import fourier_motion.render as renderer
+
+    simple = renderer._stroke_style(np.array([0, 0, 1, 1]), 1080)
+    complex_art = renderer._stroke_style(np.arange(37), 1080)
+    assert complex_art["line"] < simple["line"]
+    assert complex_art["glow"] < simple["glow"]
+    assert complex_art["blur"] < simple["blur"]
+    assert complex_art["glow_alpha"] < simple["glow_alpha"]
+    assert renderer._stroke_style(np.array([0, 0, -1, -2]), 1080) == (
+        renderer._stroke_style(np.array([0, 0]), 1080)
+    )  # Travel links do not increase contour complexity.
+
+
+def test_faint_connectors_are_transparent(tmp_path):
+    import fourier_motion.render as renderer
+
+    route = make_continuous(_two_squares(tmp_path))
+    source = Image.new("RGB", (320, 160), "#08090d")
+    def project(x, y):
+        return (int(round(x + 150)), int(round(y + 80)))
+    final = renderer._faint_final_connectors(
+        source, route.points, route.path_ids, project, 320
+    )
+    assert final.size == source.size
+    changed = np.asarray(final).astype(int) - np.asarray(source).astype(int)
+    assert changed.max() > 0
+    assert changed.max() < 100  # Low-alpha blend, not solid gray.
