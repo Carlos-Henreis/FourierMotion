@@ -1,0 +1,3 @@
+# FourierMotion
+
+Fourier epicycle renderer.
