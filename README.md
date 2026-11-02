@@ -196,3 +196,36 @@ inalterada. O centro **visual** agora usa o ponto médio do bounding box,
 que não é necessariamente igual à média das amostras. A meta de escala
 é calculada pelo bounding box e limitada pela área disponível, evitando
 cortes em desenhos com proporções diferentes.
+
+
+## Revisão: transições cinematográficas e última volta com N* real
+
+A abertura mantém **7 segundos** e mostra o **contorno original**, não a
+reconstrução por Fourier. A imagem foi reduzida um pouco (até 74% da largura
+e 40% da altura do quadro) e posicionada em aproximadamente 44% da altura
+para não invadir o gancho textual. O encerramento continua usando a
+**reconstrução efetiva**, ampliada e centralizada.
+
+O intervalo entre abertura e ciclos e o intervalo entre ciclos e resultado
+possuem uma **transição de 0,4 segundo** com crossfade suavizado,
+pulso dourado e zoom discreto. Ajustável por `--transition-seconds`.
+
+A lista de ciclos tem marcos intermediários de N, mas agora **sempre
+inclui o N* encontrado pela análise** como último ciclo, ainda que seja
+maior que `--visual-max-terms 200`. Portanto, N=200 é apenas um
+marco intermediário, nunca um teto para o resultado final.
+
+Os ciclos continuam sem pausas: cada N realiza uma volta em 3,5 segundos
+e o próximo começa imediatamente. O rótulo redundante `ETAPA N/N - 1
+volta por N` foi removido. A cena final preserva N real, Erro e fórmulas,
+sem o rodapé sobre o limite visual.
+
+```bash
+fourier-motion desenho.png --output output/reel.mp4 --error 0.005 \
+  --hook-text "Como o Fourier desenharia um boneco de palito?" \
+  --transition-seconds 0.4
+```
+
+O programa rejeita uma duração incapaz de acomodar abertura, duas
+transições, todas as voltas e a duração final mínima. O valor de erro
+matemático continua sendo calculado antes da renderização.
