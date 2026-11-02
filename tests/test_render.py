@@ -5,7 +5,7 @@ from fourier_motion.config import Settings
 from fourier_motion.fourier import analyze
 from fourier_motion.render import (
     visual_stages, stage_timing, axis_value, _epicycles,
-    _visual_scale, render_frame,
+    _visual_scale, render_frame, _vibrant_transition,
 )
 
 
@@ -17,37 +17,38 @@ def _shape():
     ))
 
 
-def test_fixed_stages_do_not_exceed_visual_limit():
+def test_final_stage_always_uses_true_n():
     result = analyze(_shape())
-    cfg = Settings(samples=128, visual_max_terms=8)
-    assert visual_stages(result, cfg) == (1, 2, 5, 8)
+    cfg = Settings(samples=128, visual_max_terms=5)
+    stages = visual_stages(result, cfg)
+    assert stages[0] == 1
+    assert stages[-1] == result.n_terms
+    assert 5 in stages
+    assert stages == tuple(sorted(set(stages)))
 
 
-def test_timeline_has_flash_and_complete_cycles():
+def test_timeline_includes_both_transitions_and_complete_cycles():
     result = analyze(_shape())
     cfg = Settings(samples=128, duration=60, fps=30)
     stages = visual_stages(result, cfg)
     total = round(cfg.duration * cfg.fps)
-    assert cfg.flash_seconds == 7.0
-    assert stage_timing(0, total, cfg, stages)[0] == "flash"
-    assert stage_timing(round(cfg.flash_seconds * cfg.fps) - 1, total, cfg, stages)[0] == "flash"
-    assert stage_timing(round(cfg.flash_seconds * cfg.fps), total, cfg, stages)[1] == 1
-    assert stage_timing(total - 1, total, cfg, stages)[0] == "final"
-    first = round(cfg.flash_seconds * cfg.fps)
+    opening = round(cfg.flash_seconds * cfg.fps)
+    transition = round(cfg.transition_seconds * cfg.fps)
     cycle = round(cfg.cycle_seconds * cfg.fps)
+    assert stage_timing(0, total, cfg, stages)[0] == "flash"
+    assert stage_timing(opening - 1, total, cfg, stages)[0] == "flash"
+    assert stage_timing(opening, total, cfg, stages)[0] == "transition_in"
+    assert stage_timing(opening + transition - 1, total, cfg, stages)[0] == "transition_in"
+    first = opening + transition
     for index, n in enumerate(stages):
-        assert stage_timing(first + index * cycle, total, cfg, stages) == ("stage", n, 0.0, index)
-        assert stage_timing(first + (index + 1) * cycle - 1, total, cfg, stages) == ("stage", n, 1.0, index)
-    assert stage_timing(first + cycle, total, cfg, stages)[1] == stages[1]
-    assert stage_timing(first + len(stages) * cycle, total, cfg, stages)[0] == "final"
-    seen = set()
-    for frame in range(total):
-        mode, n, phase, index = stage_timing(frame, total, cfg, stages)
-        if mode == "stage":
-            if index not in seen:
-                assert phase == 0.0
-                seen.add(index)
-    assert seen == set(range(len(stages)))
+        assert stage_timing(first + index * cycle, total, cfg, stages) == (
+            "stage", n, 0.0, index)
+        assert stage_timing(first + (index + 1) * cycle - 1, total, cfg, stages) == (
+            "stage", n, 1.0, index)
+    end = first + len(stages) * cycle
+    assert stage_timing(end, total, cfg, stages)[0] == "transition_out"
+    assert stage_timing(end + transition, total, cfg, stages)[0] == "final"
+    assert stage_timing(total - 1, total, cfg, stages)[0] == "final"
 
 
 @pytest.mark.parametrize("n,t", [(1, 0.0), (1, .31), (7, .55), (9, .75)])
@@ -68,23 +69,31 @@ def test_synchronized_epicycles(n, t):
         result.coefficients_y, n, t), abs=1e-7)
 
 
-def test_frame_uses_configured_resolution_and_hook():
+def test_original_opening_and_final_frame_have_expected_dimensions():
     result = analyze(_shape())
     cfg = Settings(samples=128, duration=30, final_seconds=3,
                    fps=12, width=540, height=960, visual_max_terms=8,
                    hook_text="Transformando um desenho em uma equação")
     labels = np.zeros(128, dtype=np.int32)
-    frame = render_frame(result, labels, cfg, 0, 360)
-    assert frame.size == (540, 960)
-    assert _visual_scale(result, 540, 960, cfg) > 0
-    assert _visual_scale(result, 540, 960, cfg, "final") > _visual_scale(result, 540, 960, cfg, "stage")
-    assert render_frame(result, labels, cfg, 359, 360).size == (540, 960)
+    first = render_frame(result, labels, cfg, 0, 360)
+    last = render_frame(result, labels, cfg, 359, 360)
+    assert first.size == last.size == (540, 960)
+    assert _visual_scale(result, 540, 960, cfg, "flash") < _visual_scale(
+        result, 540, 960, cfg, "final")
+    # Original and reconstructed paths differ for nonzero approximation error.
+    assert not np.array_equal(np.asarray(first), np.asarray(last))
+
+
+def test_transition_preserves_endpoints():
+    a = Image.new("RGB", (120, 240), "#08090d")
+    b = Image.new("RGB", (120, 240), "#ffdc45")
+    assert list(_vibrant_transition(a, b, 0.0).getdata()) == list(a.getdata())
+    assert list(_vibrant_transition(a, b, 1.0).getdata()) == list(b.getdata())
 
 
 def test_insufficient_duration_rejected():
     result = analyze(_shape())
     cfg = Settings(samples=128, duration=8, final_seconds=2,
                    fps=30, visual_max_terms=9)
-    stages = visual_stages(result, cfg)
     with pytest.raises(ValueError, match="Duração insuficiente"):
-        stage_timing(30, 240, cfg, stages)
+        stage_timing(30, 240, cfg, visual_stages(result, cfg))
