@@ -118,3 +118,80 @@ Para manter a tela legível com centenas de harmônicos, desenhamos apenas os **
 ### Testes de regressão
 
 tests/test_render.py verifica a progressão amostrada, a volta completa por etapa, a sincronia numérica das projeções X/Y em diferentes fases e a geração de um frame com dimensão correta.
+
+
+## Revisão TikTok: composição, ritmo e gancho (novembro/2026)
+
+### Escala dinâmica e centralização matemática
+
+A etapa `extract_contours` converte coordenadas de imagem em coordenadas
+cartesianas e subtrai a média de cada componente ANTES de calcular a FFT:
+
+```
+P_c = P - mean(P, axis=0)
+W = max(P_c[:,0]) - min(P_c[:,0])
+H = max(P_c[:,1]) - min(P_c[:,1])
+s0 = min(0.68 * largura_região / W, 0.68 * altura_região / H)
+```
+
+A região do desenho ocupa aproximadamente 49% da largura e 46% da altura
+do vídeo. A origem visual fica em (0.70 * largura, 0.425 * altura), deixando
+margem à esquerda para a cadeia Y e na parte superior para a cadeia X.
+
+Se necessário, `s = min(s0, limite_circulos_x, limite_circulos_y)`
+reduz mais a escala para que os círculos exibidos não escapem da tela. Logo,
+68% é **meta** de ocupação, não promessa geométrica rígida.
+
+A centralização é um deslocamento de coordenadas, e não afeta a forma
+reconstruída, apenas o coeficiente de frequência zero (DC).
+
+### Ritmo: 0,5s + 3,5s por volta e pausa dinâmica
+
+Uma volta inteira parametriza t em [0, 1], equivalente ao intervalo angular
+[0, 2π]. Cada marco N permanece fixo durante 3,5 segundos, e a caneta percorre
+seu contorno integralmente. O restante dos frames úteis é distribuído entre
+as etapas como pausa de contemplação, antes da etapa seguinte.
+
+O algoritmo calcula:
+
+```
+flash_frames = round(flash_seconds * fps)
+outro_frames = round(final_seconds * fps)
+available = total_frames - flash_frames - outro_frames
+cycle_frames = round(cycle_seconds * fps)
+required = cycle_frames * num_stages
+hold_frames = available - required
+```
+
+Se `hold_frames < 0`, a configuração é rejeitada. Pausas são divididas entre
+os marcos com divisões inteiras cumulativas, sem perder ou criar frames.
+Cada ciclo tem seu t local e reinicia do zero após completar a volta. Com isso
+evitamos o bug anterior em que N aumentava durante um desenho inacabado.
+
+### Marcos amostrados: 1, 2, 5, 15, 40, 100, 150, 200
+
+A lista é configurável por `--stage-terms`. Marcos acima do limite visual ou
+do N necessário matematicamente são descartados. O último marco garante a
+representação do limite visual efetivo. A progressão visual **não exige**
+mostrar todos os harmônicos inteiros entre os marcos.
+
+O corte visual padrão é N=200. **Não se aplica ao analisador**, que continua
+buscando N* com erro relativo estritamente menor que 0,05%, podendo usar todos
+os M/2 coeficientes. A tela final mostra o N* real, enquanto o vídeo informa
+que a prévia visual foi limitada a 200.
+
+### Hook de 3 segundos
+
+O argumento `--hook-text` define uma frase em português ou outro idioma.
+O texto é quebrado em até três linhas para evitar vazamento pelas bordas.
+Durante os primeiros 0,5 segundos aparece a figura final brilhante.
+Um escurecimento curto prepara a volta inicial com N=1. O texto permanece
+na abertura por 3 segundos e depois desaparece.
+
+### Testes e limites da versão
+
+`tests/test_render.py` cobre a seleção dos marcos, timeline, projeção
+sincronizada de X/Y, enquadramento e erro para duração insuficiente.
+A fidelidade da reconstrução continua sendo avaliada sobre pontos e não pixels.
+A posição da caneta deriva da mesma fase usada pelos dois epiciclos e a
+linha tracejada termina na projeção do ponto de Fourier.
