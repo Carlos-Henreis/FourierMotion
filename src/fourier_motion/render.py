@@ -269,6 +269,36 @@ def _dotted_connectors(draw, points, labels, project, color, width=2,
             _dashed(draw, a, b, color, width=width, dash=4, gap=5)
 
 
+def _stroke_style(labels: np.ndarray, width: int) -> dict:
+    """Adaptive weights: intricate line art needs sharper, thinner strokes.
+
+    Distinct non-negative path IDs count the actual contours; negative IDs
+    are pen-travel connectors, not image detail.
+    """
+    contours = len(np.unique(labels[labels >= 0]))
+    intricate = contours >= 12
+    if intricate:
+        return {"line": max(2, round(width / 540)),
+                "glow": max(5, round(width / 200)),
+                "blur": max(5, round(width / 180)),
+                "glow_alpha": 0.40, "guide": 1}
+    return {"line": max(4, width // 210),
+            "glow": max(12, width // 75),
+            "blur": max(9, width // 75),
+            "glow_alpha": 0.75, "guide": 2}
+
+
+def _faint_final_connectors(image: Image.Image, points: np.ndarray,
+                            labels: np.ndarray, project, width: int) -> Image.Image:
+    """Composite pen travel as a low-opacity gray dotted line *only* in payoff."""
+    if not np.any(labels < 0):
+        return image
+    overlay = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    _dotted_connectors(ImageDraw.Draw(overlay), points, labels, project,
+                       (160, 165, 173, 46), width=max(1, round(width / 1080)))
+    return Image.alpha_composite(image.convert("RGBA"), overlay).convert("RGB")
+
+
 def _vibrant_transition(before: Image.Image, after: Image.Image,
                         progress: float) -> Image.Image:
     """Crossfade com zoom discreto e pulso dourado, sem tela branca agressiva."""
@@ -321,20 +351,21 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
 
     image = Image.new("RGB", (w, h), "#08090d")
     draw = ImageDraw.Draw(image)
+    stroke = _stroke_style(labels, w)
 
     if mode in ("flash", "final"):
         glow = Image.new("RGB", (w, h), "#08090d")
         scene_points = analysis.original if mode == "flash" else analysis.reconstructed
-        _paths(ImageDraw.Draw(glow), scene_points,
-               labels, project, "#dca300", max(12, w // 75))
-        image = Image.blend(image, glow.filter(ImageFilter.GaussianBlur(max(9, w // 75))), .75)
+        _paths(ImageDraw.Draw(glow), scene_points, labels, project,
+               "#dca300", stroke["glow"])
+        image = Image.blend(image, glow.filter(
+            ImageFilter.GaussianBlur(stroke["blur"])), stroke["glow_alpha"])
         draw = ImageDraw.Draw(image)
-        _paths(draw, scene_points, labels, project, "#ffdc45", max(4, w // 210))
-        # Abertura = somente a imagem original: sem ligações auxiliares.
-        # A cena final revela as conexões necessárias em cinza pontilhado.
+        _paths(draw, scene_points, labels, project, "#ffdc45", stroke["line"])
+        # The original intro and every pen cycle remain free of connectors.
         if mode == "final":
-            _dotted_connectors(draw, scene_points, labels, project,
-                               "#8b9098", width=max(2, w // 400))
+            image = _faint_final_connectors(image, scene_points, labels, project, w)
+            draw = ImageDraw.Draw(image)
         if mode == "flash":
             _hook(draw, cfg, frame / cfg.fps)
             draw.text((w * .5, h * .73), "A matemática vai desenhar isso.",
@@ -347,16 +378,14 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
         current = reconstruct(analysis.coefficients_x,
                               analysis.coefficients_y, n, len(labels))
         error = float(analysis.error_history[n])
-        _paths(draw, analysis.original, labels, project, "#32343c", 2)
-        _dotted_connectors(draw, analysis.original, labels, project,
-                           "#555960", width=2)
+        _paths(draw, analysis.original, labels, project, "#32343c", stroke["guide"])
         stop = len(labels) if phase >= 1.0 else max(
             2, int(round(phase * (len(labels) - 1))) + 1)
         if stop == len(labels):
-            _paths(draw, current, labels, project, "#ffd03b", max(4, w // 210))
+            _paths(draw, current, labels, project, "#ffd03b", stroke["line"])
         else:
             _draw_partial_paths(draw, current, labels, stop,
-                                project, "#ffd03b", max(4, w // 210))
+                                project, "#ffd03b", stroke["line"])
 
         x_value = axis_value(analysis.coefficients_x, n, phase)
         y_value = axis_value(analysis.coefficients_y, n, phase)
@@ -374,8 +403,6 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
                            left, y_scale, "y", "#90cf4c")
         _dashed(draw, (x_end.real, x_end.imag), (px, py), "#176c78")
         _dashed(draw, (y_end.real, y_end.imag), (px, py), "#557c31")
-        _dotted_connectors(draw, current, labels, project, "#8b9098",
-                           width=max(2, w // 400), stop=stop)
         draw.ellipse((px - 5, py - 5, px + 5, py + 5), fill="#fff1ae")
 
     draw.text((w*.5, h*.70), f"N = {n}", anchor="mm",
