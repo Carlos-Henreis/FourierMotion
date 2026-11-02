@@ -229,3 +229,42 @@ fourier-motion desenho.png --output output/reel.mp4 --error 0.005 \
 O programa rejeita uma duração incapaz de acomodar abertura, duas
 transições, todas as voltas e a duração final mínima. O valor de erro
 matemático continua sendo calculado antes da renderização.
+
+
+## Lápis contínuo: `--continuous-path`
+
+Por padrão, o FourierMotion continua usando contornos independentes, sem
+desenhar deslocamentos entre olhos, boca e rosto. Para construir uma única
+trajetória periódica (sem levantar a caneta), habilite:
+
+```bash
+fourier-motion desenho.png --output output/reel.mp4 --error 0.005 \
+  --hook-text "Como o Fourier desenharia um emoji?" \
+  --continuous-path
+```
+
+**O que muda:** cada contorno fechado é percorrido por inteiro. Um algoritmo
+guloso escolhe o próximo contorno mais próximo e gira seu ponto inicial para
+diminuir a distância da ligação. O trajeto também retorna ao início no
+último segmento, pois a série de Fourier é periódica. As ligações
+integram o sinal amostrado e a análise espectral, mas são identificadas por
+IDs negativos para serem exibidas como **linhas pontilhadas ciano** em vez
+de traços sólidos amarelos.
+
+O traço original permanece amarelo; apenas os movimentos entre contornos
+aparecem pontilhados (na abertura, na animação e no quadro final).
+No modo padrão, nenhuma ligação é exibida.
+
+Importante: uma trajetória fisicamente contínua entre regiões
+desconectadas precisa atravessar o espaço que as separa. A distinção entre
+contorno e ligação é **visual**: pontilhado significa movimento de
+transição, não que a caneta desapareceu. A precisão de erro é calculada
+sobre o novo sinal contínuo inteiro, incluindo os deslocamentos.
+O arquivo `.fourier.json` traz o campo `continuous_path` para registrar
+qual modo foi utilizado.
+
+O modo não resolve o problema de traçar contornos desconexos sem conectar
+regiões. Apenas escolhe conexões relativamente curtas e torna essas
+conexões explícitas. As curvas são reamostradas por comprimento de arco
+para que os coeficientes descrevam a trajetória única a velocidade de
+percurso aproximadamente constante.
