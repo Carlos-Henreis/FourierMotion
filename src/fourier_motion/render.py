@@ -20,6 +20,8 @@ def _font(size: int, serif: bool = False):
 
 def _paths(draw, points, labels, project, color, width):
     for label in np.unique(labels):
+        if label < 0:
+            continue  # travel bridges are rendered with dashed strokes
         segment = points[labels == label]
         if len(segment) >= 2:
             xy = [project(*point) for point in segment]
@@ -182,9 +184,43 @@ def _hook(draw, cfg: Settings, elapsed: float):
 def _draw_partial_paths(draw, points, labels, stop, project, color, width):
     """Rastro parcial sem unir caminhos independentes."""
     for label in np.unique(labels[:stop]):
+        if label < 0:
+            continue
         sub = points[:stop][labels[:stop] == label]
         if len(sub) > 1:
             draw.line([project(*p) for p in sub], fill=color, width=width, joint="curve")
+
+
+def _dotted_connectors(draw, points, labels, project, color, width=2,
+                       stop=None):
+    """Draw each explicitly labeled travel segment as a dotted polyline.
+
+    Travel labels are negative unique IDs. The end of each connector is
+    joined to the next contour point, including the final cyclic return;
+    it is *never* painted as an ordinary solid contour.
+    """
+    count = len(labels)
+    visible = count if stop is None else min(count, max(0, stop))
+    if visible == 0 or not np.any(labels < 0):
+        return
+    for marker in np.unique(labels[labels < 0]):
+        indexes = np.flatnonzero(labels == marker)
+        indexes = indexes[indexes < visible]
+        if not len(indexes):
+            continue
+        first, last = int(indexes[0]), int(indexes[-1])
+        indices = []
+        if first > 0:
+            indices.append(first - 1)
+        indices.extend(indexes.tolist())
+        next_index = (last + 1) % count
+        if next_index < visible and (last + 1 < count or visible == count):
+            indices.append(next_index)
+        if len(indices) < 2:
+            continue
+        xy = [project(*points[index]) for index in indices]
+        for a, b in zip(xy[:-1], xy[1:]):
+            _dashed(draw, a, b, color, width=width, dash=4, gap=5)
 
 
 def _vibrant_transition(before: Image.Image, after: Image.Image,
@@ -248,6 +284,8 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
         image = Image.blend(image, glow.filter(ImageFilter.GaussianBlur(max(9, w // 75))), .75)
         draw = ImageDraw.Draw(image)
         _paths(draw, scene_points, labels, project, "#ffdc45", max(4, w // 210))
+        _dotted_connectors(draw, scene_points, labels, project,
+                           "#36ccdf", width=max(2, w // 400))
         if mode == "flash":
             _hook(draw, cfg, frame / cfg.fps)
             draw.text((w * .5, h * .73), "A matemática vai desenhar isso.",
@@ -261,6 +299,8 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
                               analysis.coefficients_y, n, len(labels))
         error = float(analysis.error_history[n])
         _paths(draw, analysis.original, labels, project, "#32343c", 2)
+        _dotted_connectors(draw, analysis.original, labels, project,
+                           "#315d64", width=2)
         stop = len(labels) if phase >= 1.0 else max(
             2, int(round(phase * (len(labels) - 1))) + 1)
         if stop == len(labels):
@@ -285,6 +325,8 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
                            left, y_scale, "y", "#90cf4c")
         _dashed(draw, (x_end.real, x_end.imag), (px, py), "#176c78")
         _dashed(draw, (y_end.real, y_end.imag), (px, py), "#557c31")
+        _dotted_connectors(draw, current, labels, project, "#36ccdf",
+                           width=max(2, w // 400), stop=stop)
         draw.ellipse((px - 5, py - 5, px + 5, py + 5), fill="#fff1ae")
 
     draw.text((w*.5, h*.70), f"N = {n}", anchor="mm",
