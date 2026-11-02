@@ -45,7 +45,8 @@ def ffmpeg_command(settings, output: Path, audio: Path | None = None) -> list[st
     else:
         cmd.extend([
             "-c:a", "aac", "-b:a", "192k",
-            "-af", f"apad,atrim=duration={settings.duration},asetpts=N/SR/TB",
+            "-af", (f"apad,atrim=duration={settings.duration},asetpts=N/SR/TB,"
+                    "loudnorm=I=-16:TP=-1.5:LRA=11"),
         ])
     cmd.extend([
         "-movflags", "+faststart", "-t", str(settings.duration), str(output),
