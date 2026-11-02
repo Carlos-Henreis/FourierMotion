@@ -72,3 +72,34 @@ def test_continuous_video_frame_renders(tmp_path):
                    fps=12, hook_text="Dois quadrados")
     image = render_frame(analysis, route.path_ids, cfg, 0, 720)
     assert image.size == (540, 960)
+
+
+def test_opening_has_no_bridges_and_other_scenes_use_gray(tmp_path, monkeypatch):
+    import fourier_motion.render as renderer
+
+    signal = make_continuous(_two_squares(tmp_path))
+    analysis = analyze(signal.points)
+    cfg = Settings(samples=512, duration=60, fps=12, width=540, height=960,
+                   hook_text="A imagem original")
+    calls = []
+    actual = renderer._dotted_connectors
+
+    def spy(*args, **kwargs):
+        calls.append((kwargs.get("color", args[4] if len(args) > 4 else None),
+                      kwargs.get("stop")))
+        return actual(*args, **kwargs)
+
+    monkeypatch.setattr(renderer, "_dotted_connectors", spy)
+    total = round(cfg.duration * cfg.fps)
+
+    renderer.render_frame(analysis, signal.path_ids, cfg, 0, total)
+    assert calls == []  # Abertura só mostra o contorno original.
+
+    renderer.render_frame(analysis, signal.path_ids, cfg, total - 1, total)
+    assert calls == [("#8b9098", None)]
+
+    calls.clear()
+    frame = round((cfg.flash_seconds + cfg.transition_seconds + 1) * cfg.fps)
+    renderer.render_frame(analysis, signal.path_ids, cfg, frame, total)
+    assert all(color in {"#555960", "#8b9098"} for color, _ in calls)
+    assert len(calls) == 2
