@@ -27,28 +27,70 @@ def test_final_stage_always_uses_true_n():
     assert stages == tuple(sorted(set(stages)))
 
 
-def test_timeline_includes_both_transitions_and_complete_cycles():
+def test_timeline_final_payoff_only_in_last_seven_seconds():
     result = analyze(_shape())
     cfg = Settings(samples=128, duration=60, fps=30)
     stages = visual_stages(result, cfg)
     total = round(cfg.duration * cfg.fps)
     opening = round(cfg.flash_seconds * cfg.fps)
     transition = round(cfg.transition_seconds * cfg.fps)
-    cycle = round(cfg.cycle_seconds * cfg.fps)
+    final_frames = round(cfg.final_seconds * cfg.fps)
+
+    assert cfg.final_seconds == 7.0
     assert stage_timing(0, total, cfg, stages)[0] == "flash"
-    assert stage_timing(opening - 1, total, cfg, stages)[0] == "flash"
+    assert stage_timing(opening-1, total, cfg, stages)[0] == "flash"
     assert stage_timing(opening, total, cfg, stages)[0] == "transition_in"
-    assert stage_timing(opening + transition - 1, total, cfg, stages)[0] == "transition_in"
-    first = opening + transition
-    for index, n in enumerate(stages):
-        assert stage_timing(first + index * cycle, total, cfg, stages) == (
-            "stage", n, 0.0, index)
-        assert stage_timing(first + (index + 1) * cycle - 1, total, cfg, stages) == (
-            "stage", n, 1.0, index)
-    end = first + len(stages) * cycle
-    assert stage_timing(end, total, cfg, stages)[0] == "transition_out"
-    assert stage_timing(end + transition, total, cfg, stages)[0] == "final"
+    assert stage_timing(opening + transition, total, cfg, stages)[0] == "stage"
+    assert stage_timing(total - final_frames - 1, total, cfg, stages)[0] == "transition_out"
+    assert stage_timing(total - final_frames, total, cfg, stages)[0] == "final"
     assert stage_timing(total - 1, total, cfg, stages)[0] == "final"
+
+    # No idle interval: every frame from start to end has a meaningful scene.
+    modes = [stage_timing(f, total, cfg, stages)[0] for f in range(total)]
+    assert modes.count("final") == final_frames
+    assert modes.count("transition_in") == transition
+    assert modes.count("transition_out") == transition
+    assert modes.count("stage") == total - opening - 2*transition - final_frames
+    assert set(modes) == {"flash", "transition_in", "stage", "transition_out", "final"}
+    assert all(modes[i] == modes[i+1] or
+               (modes[i], modes[i+1]) in {
+                   ("flash","transition_in"), ("transition_in","stage"),
+                   ("stage","transition_out"), ("transition_out","final")}
+               for i in range(total-1))
+
+
+def test_dynamic_milestones_depend_on_actual_n():
+    from dataclasses import replace
+    result = analyze(_shape())
+    cfg = Settings(samples=2048, visual_max_terms=200)
+    large = replace(result, n_terms=997)
+    stages = visual_stages(large, cfg)
+    assert stages[:8] == (1, 2, 5, 15, 40, 100, 150, 200)
+    assert stages[-1] == 997
+    middle = [n for n in stages if 200 < n < 997]
+    assert len(middle) == 2
+    assert middle[0] < middle[1]
+    assert visual_stages(replace(result, n_terms=400), cfg)[-1] == 400
+
+
+def test_stages_have_complete_revolutions_and_no_static_holds():
+    result = analyze(_shape())
+    cfg = Settings(samples=128, duration=60, fps=30)
+    stages = visual_stages(result, cfg)
+    total = cfg.duration * cfg.fps
+    stage_frames = [(f, stage_timing(f, int(total), cfg, stages))
+                    for f in range(int(total))]
+    for index, n in enumerate(stages):
+        frames = [(f, state[2]) for f, state in stage_frames
+                  if state[0] == "stage" and state[3] == index]
+        assert len(frames) >= 2
+        assert frames[0][1] == 0.0
+        assert frames[-1][1] == 1.0
+        assert all(0 <= phase <= 1 for _, phase in frames)
+        # Any reset from phase=1 to 0 is intentional: another whole loop.
+        for (f1, p1), (f2, p2) in zip(frames, frames[1:]):
+            assert f2 == f1 + 1
+            assert p2 >= p1 or (p1 == 1.0 and p2 == 0.0)
 
 
 @pytest.mark.parametrize("n,t", [(1, 0.0), (1, .31), (7, .55), (9, .75)])
