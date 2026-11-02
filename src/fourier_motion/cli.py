@@ -5,11 +5,12 @@ from pathlib import Path
 import numpy as np
 from .config import Settings
 from .contours import extract_contours
+from .continuous import make_continuous
 from .fourier import analyze
 from .render import render_video
 
 
-def save_coefficients(path: Path, result) -> None:
+def save_coefficients(path: Path, result, continuous_path: bool = False) -> None:
     def terms(coeff):
         return [
             {"k": k, "real": float(v.real), "imag": float(v.imag),
@@ -19,6 +20,7 @@ def save_coefficients(path: Path, result) -> None:
         ]
     data = {
         "harmonics": result.n_terms,
+        "continuous_path": continuous_path,
         "error_percent": result.error_percent,
         "error_definition": "100 * RMS(Euclidean distance) / original bounding-box diagonal",
         "samples": len(result.original), "scale": result.scale,
@@ -60,6 +62,8 @@ def main(argv: list[str] | None = None) -> int:
                    help="Máximo visual; a precisão final continua usando N*")
     p.add_argument("--stage-terms", type=parse_stage_terms,
                    default=(1, 2, 5, 15, 40, 100, 150, 200))
+    p.add_argument("--continuous-path", action="store_true",
+                   help="Trajetória única com conexões pontilhadas entre contornos")
     p.add_argument("--analyze-only", action="store_true")
     args = p.parse_args(argv)
     cfg = Settings(samples=args.samples, threshold_percent=args.error, fps=args.fps,
@@ -75,10 +79,13 @@ def main(argv: list[str] | None = None) -> int:
     cfg.validate()
     contours = extract_contours(args.image, cfg.samples, cfg.min_contour_length,
                                 cfg.max_contours)
+    if args.continuous_path:
+        contours = make_continuous(contours)
     result = analyze(contours.points, cfg.threshold_percent, cfg.max_terms)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    save_coefficients(args.output.with_suffix(".fourier.json"), result)
-    print(f"Contornos={contours.count}; amostras={cfg.samples}; "
+    save_coefficients(args.output.with_suffix(".fourier.json"), result,
+                      continuous_path=args.continuous_path)
+    print(f"Contornos={contours.count}; continuo={args.continuous_path}; amostras={cfg.samples}; "
           f"N={result.n_terms}; erro={result.error_percent:.8f}%")
     if not args.analyze_only:
         render_video(result, contours.path_ids, args.output, cfg)
