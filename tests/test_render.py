@@ -28,9 +28,18 @@ def test_timeline_has_flash_and_complete_cycles():
     cfg = Settings(samples=128, duration=60, fps=30)
     stages = visual_stages(result, cfg)
     total = round(cfg.duration * cfg.fps)
+    assert cfg.flash_seconds == 7.0
     assert stage_timing(0, total, cfg, stages)[0] == "flash"
+    assert stage_timing(round(cfg.flash_seconds * cfg.fps) - 1, total, cfg, stages)[0] == "flash"
     assert stage_timing(round(cfg.flash_seconds * cfg.fps), total, cfg, stages)[1] == 1
     assert stage_timing(total - 1, total, cfg, stages)[0] == "final"
+    first = round(cfg.flash_seconds * cfg.fps)
+    cycle = round(cfg.cycle_seconds * cfg.fps)
+    for index, n in enumerate(stages):
+        assert stage_timing(first + index * cycle, total, cfg, stages) == ("stage", n, 0.0, index)
+        assert stage_timing(first + (index + 1) * cycle - 1, total, cfg, stages) == ("stage", n, 1.0, index)
+    assert stage_timing(first + cycle, total, cfg, stages)[1] == stages[1]
+    assert stage_timing(first + len(stages) * cycle, total, cfg, stages)[0] == "final"
     seen = set()
     for frame in range(total):
         mode, n, phase, index = stage_timing(frame, total, cfg, stages)
@@ -68,6 +77,8 @@ def test_frame_uses_configured_resolution_and_hook():
     frame = render_frame(result, labels, cfg, 0, 360)
     assert frame.size == (540, 960)
     assert _visual_scale(result, 540, 960, cfg) > 0
+    assert _visual_scale(result, 540, 960, cfg, "final") > _visual_scale(result, 540, 960, cfg, "stage")
+    assert render_frame(result, labels, cfg, 359, 360).size == (540, 960)
 
 
 def test_insufficient_duration_rejected():
