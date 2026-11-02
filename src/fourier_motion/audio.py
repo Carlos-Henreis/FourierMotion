@@ -1,5 +1,6 @@
 """FFmpeg command builder for an optional original or licensed soundtrack."""
 from pathlib import Path
+import random
 
 SUPPORTED_AUDIO = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg"}
 
@@ -50,3 +51,30 @@ def ffmpeg_command(settings, output: Path, audio: Path | None = None) -> list[st
         "-movflags", "+faststart", "-t", str(settings.duration), str(output),
     ])
     return cmd
+
+
+def choose_audio(
+    audio: str | Path | None = None,
+    audio_dir: str | Path | None = None,
+    audio_seed: int | None = None,
+) -> Path | None:
+    """Choose one track uniformly from a local folder, with optional seeded RNG.
+
+    The selection is performed once per run, before frame rendering. The chosen
+    track is reported by the CLI, allowing the video to be reproduced.
+    """
+    if audio is not None and audio_dir is not None:
+        raise ValueError("Use --audio OU --audio-dir, nunca ambos")
+    if audio_dir is None:
+        return validate_audio(audio)
+    folder = Path(audio_dir).expanduser().resolve()
+    if not folder.is_dir():
+        raise ValueError(f"Pasta de trilhas não encontrada: {folder}")
+    tracks = sorted(
+        path for path in folder.iterdir()
+        if path.is_file() and path.suffix.lower() in SUPPORTED_AUDIO
+    )
+    if not tracks:
+        raise ValueError(f"Nenhuma trilha de áudio compatível encontrada em: {folder}")
+    selected = random.Random(audio_seed).choice(tracks)
+    return validate_audio(selected)
