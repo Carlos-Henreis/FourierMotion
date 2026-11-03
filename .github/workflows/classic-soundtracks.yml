@@ -1,9 +1,10 @@
-name: Regenerate classic soundtracks
+name: Regenerate classic soundtracks from original MIDI
 on:
   push:
     branches: [main]
     paths:
       - 'scripts/generate_classic_soundtracks.py'
+      - 'soundtracks/references/**'
       - '.github/workflows/classic-soundtracks.yml'
   workflow_dispatch:
 permissions:
@@ -12,7 +13,7 @@ concurrency:
   group: classic-soundtracks-main
   cancel-in-progress: false
 jobs:
-  synthesize:
+  render:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,28 +22,59 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install 'numpy>=1.26,<3'
-      - name: Generate new genre arrangements
+      - name: Install a real General MIDI soundfont renderer
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y fluidsynth fluid-soundfont-gm ffmpeg
+          python -m pip install 'numpy>=1.26,<3' 'pretty_midi>=0.2.10'
+      - name: Re-orchestrate original MIDI scores
         run: python scripts/generate_classic_soundtracks.py
-      - name: Validate distinct 60s PCM files
+      - name: Render real sampled instruments and master the five 60s scores
+        run: |
+          set -euo pipefail
+          SF2=/usr/share/sounds/sf2/FluidR3_GM.sf2
+          test -s "$SF2"
+          for song in soundtracks/classic/*_60s.mid; do
+            temp="$(mktemp --suffix=.wav)"
+            fluidsynth -ni -g 0.35 -F "$temp" -r 16000 "$SF2" "$song"
+            ffmpeg -hide_banner -loglevel error -y -i "$temp" \
+              -af "apad,atrim=duration=60,afade=t=in:st=0:d=0.12,afade=t=out:st=59.6:d=0.4,loudnorm=I=-16:TP=-1.5:LRA=9" \
+              -ar 16000 -ac 1 -c:a pcm_s16le "${song%.mid}.wav"
+            rm -f "$temp"
+          done
+      - name: Assert duration, original-score complexity and unique audible arrangements
         run: |
           python - <<'PY'
-          import hashlib, pathlib, wave
-          files = sorted(pathlib.Path("soundtracks/classic").glob("*.wav"))
-          assert len(files) == 5
-          hashes = []
-          for path in files:
-              with wave.open(str(path), "rb") as f:
-                  assert (f.getnchannels(),f.getsampwidth(),f.getframerate(),f.getnframes()) == (1,2,16000,960000)
-                  hashes.append(hashlib.sha256(f.readframes(f.getnframes())).hexdigest())
-          assert len(set(hashes)) == 5
+          import hashlib, pathlib, wave, pretty_midi, numpy as np
+          folder = pathlib.Path("soundtracks/classic")
+          wavs = sorted(folder.glob("*.wav"))
+          mids = sorted(folder.glob("*.mid"))
+          assert len(wavs) == len(mids) == 5, (wavs, mids)
+          hashes = set()
+          for wav in wavs:
+              with wave.open(str(wav), "rb") as file:
+                  assert (file.getnchannels(), file.getsampwidth(), file.getframerate(), file.getnframes()) == (1,2,16000,960000), wav
+                  audio = np.frombuffer(file.readframes(960000), dtype="<i2").astype(np.float32)
+              assert np.sqrt(np.mean(audio*audio)) > 900, wav
+              assert np.max(abs(audio)) > 2500, wav
+              hashes.add(hashlib.sha256(audio.tobytes()).hexdigest())
+              midi = pretty_midi.PrettyMIDI(str(wav.with_suffix(".mid")))
+              assert len(midi.instruments) >= 6
+              assert sum(len(i.notes) for i in midi.instruments) >= 200
+              assert all(0 <= n.start < n.end <= 60 for inst in midi.instruments for n in inst.notes)
+          assert len(hashes) == 5
           PY
-      - name: Commit generated tracks directly to main
+      - name: Run project tests
+        run: |
+          python -m pip install -e '.[dev]'
+          pytest -q
+      - name: Commit restored soundtracks to main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add soundtracks/classic/*.wav
+          git add soundtracks/classic/*.wav soundtracks/classic/*.mid
           if ! git diff --cached --quiet; then
-            git commit -m "build(audio): regenerate five classic genre soundtracks"
+            git commit -m "build(audio): restore MIDI-based instrument soundtracks"
+            git pull --rebase origin main
             git push origin HEAD:main
           fi
