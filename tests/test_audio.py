@@ -153,7 +153,7 @@ def test_classic_playlist_prefers_five_new_genres(tmp_path):
 
 def test_bundled_classic_soundtracks_are_distinct_audible_sixty_second_wavs():
     import hashlib
-    import audioop
+    from array import array
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1] / "soundtracks" / "classic"
@@ -170,7 +170,11 @@ def test_bundled_classic_soundtracks_are_distinct_audible_sixty_second_wavs():
             assert source.getframerate() == 16000
             assert source.getnframes() == 60 * 16000
             samples = source.readframes(source.getnframes())
-            assert audioop.rms(samples, 2) > 900
-            assert audioop.max(samples, 2) > 2500
+            data = array('h')
+            data.frombytes(samples)
+            peak = max(abs(v) for v in data)
+            rms = (sum(v * v for v in data) / len(data)) ** 0.5
+            assert rms > 900
+            assert peak > 2500
         digests.add(hashlib.sha256(samples).hexdigest())
     assert len(digests) == 5
