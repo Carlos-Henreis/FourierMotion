@@ -128,3 +128,49 @@ def test_bundled_viral_soundtracks_are_five_distinct_20s_wavs():
             assert music.getnframes() == 20 * 16000
         checksums.append(hashlib.sha256(song.read_bytes()).hexdigest())
     assert len(set(checksums)) == 5
+
+
+def test_classic_playlist_prefers_five_new_genres(tmp_path):
+    from fourier_motion.audio import choose_audio
+
+    (tmp_path / "old_60s.mp3").write_bytes(b"old")
+    target = tmp_path / "classic"
+    target.mkdir()
+    names = ("rock", "anime", "forro", "sertanejo", "hiphop")
+    for genre in names:
+        (target / f"FourierMotion_{genre}_60s.wav").write_bytes(b"test")
+    picked = {choose_audio(audio_dir=tmp_path, preset="classic", audio_seed=i).name
+              for i in range(100)}
+    assert picked == {f"FourierMotion_{genre}_60s.wav" for genre in names}
+    assert choose_audio(audio_dir=tmp_path, preset="classic", audio_seed=42) == (
+        choose_audio(audio_dir=tmp_path, preset="classic", audio_seed=42)
+    )
+    # Explicit selection must override playlist discovery.
+    assert choose_audio(audio=tmp_path / "old_60s.mp3", preset="classic").name == (
+        "old_60s.mp3"
+    )
+
+
+def test_bundled_classic_soundtracks_are_distinct_audible_sixty_second_wavs():
+    import hashlib
+    import audioop
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "soundtracks" / "classic"
+    tracks = sorted(root.glob("*.wav"))
+    assert len(tracks) == 5
+    assert {p.stem.split("_")[2] for p in tracks} == {
+        "rock", "anime", "forro", "sertanejo", "hiphop"
+    }
+    digests = set()
+    for path in tracks:
+        with wave.open(str(path), "rb") as source:
+            assert source.getnchannels() == 1
+            assert source.getsampwidth() == 2
+            assert source.getframerate() == 16000
+            assert source.getnframes() == 60 * 16000
+            samples = source.readframes(source.getnframes())
+            assert audioop.rms(samples, 2) > 900
+            assert audioop.max(samples, 2) > 2500
+        digests.add(hashlib.sha256(samples).hexdigest())
+    assert len(digests) == 5
