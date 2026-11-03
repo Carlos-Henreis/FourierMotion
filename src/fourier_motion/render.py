@@ -74,7 +74,7 @@ def _stage_boundaries(total: int, cfg: Settings, stages: tuple[int, ...]):
 
 
 def stage_timing(frame: int, total: int, cfg: Settings, stages: tuple[int, ...]):
-    """Opening, transitions, paced cycles and an exact seven-second payoff.
+    """Opening, transitions, paced cycles and an exact final payoff.
 
     Stages divide all the available time. Slow cycles or additional complete
     revolutions are chosen per stage to fit its allotted integer frame budget.
@@ -329,9 +329,17 @@ def _vibrant_transition(before: Image.Image, after: Image.Image,
     return blended
 
 
+def _draw_formulas(draw, w: int, h: int) -> None:
+    """The same correct X/Y Fourier formulas, reusable in both layouts."""
+    draw.text((w*.5, h*.815), "x(t) = a0 + Σ Ak cos(2πkt + φk)",
+              anchor="mm", font=_font(max(19, w // 37), True), fill="#16cde1")
+    draw.text((w*.5, h*.855), "y(t) = b0 + Σ Bk cos(2πkt + ψk)",
+              anchor="mm", font=_font(max(19, w // 37), True), fill="#8be25c")
+
+
 def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
                  frame: int, total: int, _override=None) -> Image.Image:
-    """Abertura central de 7s, ciclos imediatos e resultado grande central."""
+    """Render classic unchanged; viral shows active epicycles from frame zero."""
     w, h = cfg.width, cfg.height
     stages = visual_stages(analysis, cfg)
     mode, n, phase, stage = (stage_timing(frame, total, cfg, stages)
@@ -350,7 +358,7 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
         return _vibrant_transition(before, after, phase)
     scale = _visual_scale(analysis, w, h, cfg, scene=mode)
     cx = w * (.50 if mode in ("flash", "final") else (.54 if cfg.preset == "viral" else .65))
-    cy = h * (.44 if mode == "flash" else .405 if mode == "final" else .415)
+    cy = h * (.44 if mode == "flash" else .405 if mode == "final" else (.39 if cfg.preset == "viral" else .415))
     # Mean subtraction is done before FFT. Visual bbox centering is a
     # separate translation: mean and bbox midpoint are not necessarily equal.
     bbox_min = np.min(analysis.original, axis=0)
@@ -395,7 +403,8 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
         current = reconstruct(analysis.coefficients_x,
                               analysis.coefficients_y, n, len(labels))
         error = float(analysis.error_history[n])
-        _paths(draw, analysis.original, labels, project, "#32343c", stroke["guide"])
+        guide_color = "#627487" if cfg.preset == "viral" else "#32343c"
+        _paths(draw, analysis.original, labels, project, guide_color, stroke["guide"])
         stop = len(labels) if phase >= 1.0 else max(
             2, int(round(phase * (len(labels) - 1))) + 1)
         if stop == len(labels):
@@ -412,7 +421,8 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
         # continuam usando exatamente o mesmo t da caneta.
         x_scale = _circle_scale(analysis, w, h, cfg, "x", n)
         y_scale = _circle_scale(analysis, w, h, cfg, "y", n)
-        top = (w * .64 + x_scale * analysis.coefficients_x[0].real, h * .14)
+        top = (w * .64 + x_scale * analysis.coefficients_x[0].real,
+               h * (.20 if cfg.preset == "viral" else .14))
         left = (w * .20, cy - y_scale * analysis.coefficients_y[0].real)
         x_end = _epicycles(draw, analysis.coefficients_x, n, phase,
                            top, x_scale, "x", "#14bfd6")
@@ -426,11 +436,8 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
               font=_font(max(34, w // 17), True), fill="#ffcf2f")
     draw.text((w*.5, h*.75), f"Erro = {error:.5f}%", anchor="mm",
               font=_font(max(26, w // 25), True), fill="#f4f1e9")
-    if mode == "final":
-        draw.text((w*.5, h*.815), "x(t) = a0 + Σ Ak cos(2πkt + φk)",
-                  anchor="mm", font=_font(max(19, w // 37), True), fill="#16cde1")
-        draw.text((w*.5, h*.855), "y(t) = b0 + Σ Bk cos(2πkt + ψk)",
-                  anchor="mm", font=_font(max(19, w // 37), True), fill="#8be25c")
+    if mode == "final" or cfg.preset == "viral":
+        _draw_formulas(draw, w, h)
     _hook(draw, cfg, frame / cfg.fps)
     draw.text((w*.5, h*.955), "FOURIER MOTION", anchor="mm",
               font=_font(max(18, w // 40)), fill="#8a8f9e")
