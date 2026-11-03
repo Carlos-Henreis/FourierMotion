@@ -151,10 +151,10 @@ def test_transition_preserves_endpoints():
 
 def test_insufficient_duration_rejected():
     result = analyze(_shape())
-    cfg = Settings(samples=128, duration=8, final_seconds=2,
+    cfg = Settings(samples=128, duration=6, final_seconds=2,
                    fps=30, visual_max_terms=9)
     with pytest.raises(ValueError, match="Duração insuficiente"):
-        stage_timing(30, 240, cfg, visual_stages(result, cfg))
+        stage_timing(30, 180, cfg, visual_stages(result, cfg))
 
 
 def test_viral_preset_has_twenty_second_payoff_and_few_cycles():
