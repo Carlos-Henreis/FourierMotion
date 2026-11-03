@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Settings:
+    preset: str = "classic"
     samples: int = 2048
     threshold_percent: float = 0.05
     fps: int = 30
@@ -24,6 +25,8 @@ class Settings:
     hook_text: str = ""
 
     def validate(self) -> None:
+        if self.preset not in {"classic", "viral"}:
+            raise ValueError("--preset deve ser classic ou viral")
         if self.samples < 32 or self.samples % 2:
             raise ValueError("--samples deve ser par e >= 32")
         if not 0 < self.threshold_percent < 100:
