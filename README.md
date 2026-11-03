@@ -410,3 +410,59 @@ Se você alterar esses valores, será necessário adaptar a trilha também.
 
 Os arquivos de áudio não precisam estar no repositório Git:
 você pode manter uma biblioteca local e escolher diferentes faixas a cada Reel.
+
+
+## Presets de publicação: `viral` e `classic`
+
+O FourierMotion tem dois modos de montagem, sem alterar a FFT, os 2.048
+pontos padrão, o limiar de erro ou a trajetória contínua.
+
+| | `classic` (padrão) | `viral` |
+|---|---|---|
+| Duração | 60 segundos | 20 segundos |
+| Abertura | 7 segundos | 0,5 segundo |
+| Transições | 0,4 segundo | 0,2 segundo |
+| Final | 53–60 s | 16–20 s |
+| Etapas | completas e dinâmicas | até seis marcos de N |
+| Visual | original | escala e brilho reforçados |
+| Gancho | abertura | primeiros 2,5 segundos |
+
+O modo `viral` usa a sequência de marcos `1, 5, 25, 100, 250, N*`
+limitada pelo N final real. Isso acelera as mudanças visuais e ainda termina
+no N que efetivamente atinge a precisão matemática solicitada. A imagem
+começa a ser desenhada por volta de **0,7 s** (abertura de 0,5 s e transição
+de 0,2 s). O modo `classic` conserva os comportamentos antigos.
+
+### Exemplo: GTA VI em 20 segundos
+
+```bash
+fourier-motion examples/gtavi/desenho.png \
+  --output examples/gtavi/output/viral.mp4 \
+  --preset viral --error 0.005 \
+  --hook-text "A equação matemática que vai lançar o GTA 6" \
+  --continuous-path --audio-dir soundtracks
+```
+
+### Cinco trilhas originais de 20 s **incluídas no repositório**
+
+Estão em `soundtracks/viral/` cinco arquivos WAV distintos: ambient,
+synthwave, lo-fi, orchestral e chiptune. São composições originais geradas
+para este preset, com mudança musical aos **16 segundos**. São arquivos WAV
+PCM mono 16 kHz/16-bit; o FFmpeg converte para AAC e normaliza o volume
+na geração do MP4. Podem ser substituídos por produções de maior qualidade
+sem mudar a interface.
+
+Se `--preset viral --audio-dir soundtracks` for usado, a seleção aleatória
+ocorre **apenas entre as cinco faixas em `soundtracks/viral`**, isoladas
+das músicas longas do modo clássico. `--audio-seed 42` torna a escolha
+reproduzível. `--audio` escolhe uma trilha específica.
+
+**Atenção:** o modo `classic` busca arquivos de áudio diretamente na pasta
+indicada por `--audio-dir`, como já fazia antes. A pasta `soundtracks/viral`
+não é examinada pelo modo `classic`. Para um clássico com áudio, mantenha
+seus arquivos de 60 segundos na raiz de `soundtracks/` ou use `--audio`.
+
+É possível sobrescrever parâmetros individuais por
+`--duration`, `--flash-seconds`, `--final-seconds` ou
+`--transition-seconds`. Se alterar o começo da cena final, escolha uma
+trilha com clímax no tempo correspondente.
