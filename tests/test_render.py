@@ -145,7 +145,8 @@ def test_viral_preset_has_twenty_second_payoff_and_few_cycles():
     result = analyze(_shape())
     cfg = Settings(preset="viral", samples=128, duration=20, fps=30,
                    flash_seconds=0.5, transition_seconds=0.2,
-                   final_seconds=4.0, stage_terms=(1, 2, 5, 15, 40, 100, 150, 200))
+                   final_seconds=4.0, visual_max_terms=64,
+                   stage_terms=(1, 2, 5, 15, 40, 100, 150, 200))
     cfg.validate()
     stages = visual_stages(result, cfg)
     assert stages[0] == 1
