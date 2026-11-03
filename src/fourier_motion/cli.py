@@ -44,7 +44,7 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="FourierMotion: contornos para Reels")
     p.add_argument("image", type=Path)
     p.add_argument("--preset", choices=("classic", "viral"), default="classic",
-                   help="classic: 60s, viral: 20s com revelação aos 16s")
+                   help="classic: 60s, viral: 20s com epiciclos desde 0s e revelação aos 16s")
     p.add_argument("--output", type=Path, default=Path("output/reel.mp4"))
     p.add_argument("--samples", type=int, default=2048)
     p.add_argument("--error", type=float, default=0.05)
@@ -83,8 +83,8 @@ def main(argv: list[str] | None = None) -> int:
                    max_terms=args.max_terms,
                    min_contour_length=args.min_contour_length, speed=args.speed,
                    hook_text=args.hook_text,
-                   flash_seconds=args.flash_seconds if args.flash_seconds is not None else (0.5 if viral else 7.0),
-                   transition_seconds=args.transition_seconds if args.transition_seconds is not None else (0.2 if viral else 0.4),
+                   flash_seconds=args.flash_seconds if args.flash_seconds is not None else (0.0 if viral else 7.0),
+                   transition_seconds=args.transition_seconds if args.transition_seconds is not None else (0.0 if viral else 0.4),
                    cycle_seconds=args.cycle_seconds if args.cycle_seconds is not None else 3.5,
                    target_fill_ratio=args.target_fill_ratio,
                    visual_max_terms=args.visual_max_terms,
