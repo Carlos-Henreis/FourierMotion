@@ -110,3 +110,21 @@ def test_viral_audio_selects_only_20_second_tracks(tmp_path):
              for i in range(80)}
     assert picks == set(names)
     assert choose_audio(audio_dir=tmp_path, preset="classic").name == "old_60s.mp3"
+
+
+def test_bundled_viral_soundtracks_are_five_distinct_20s_wavs():
+    from pathlib import Path
+    import hashlib
+
+    base = Path(__file__).resolve().parents[1] / "soundtracks" / "viral"
+    songs = sorted(base.glob("*.wav"))
+    assert len(songs) == 5
+    checksums = []
+    for song in songs:
+        with wave.open(str(song), "rb") as music:
+            assert music.getnchannels() == 1
+            assert music.getsampwidth() == 2
+            assert music.getframerate() == 16000
+            assert music.getnframes() == 20 * 16000
+        checksums.append(hashlib.sha256(song.read_bytes()).hexdigest())
+    assert len(set(checksums)) == 5
