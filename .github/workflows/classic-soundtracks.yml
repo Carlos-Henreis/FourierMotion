@@ -1,0 +1,48 @@
+name: Regenerate classic soundtracks
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/generate_classic_soundtracks.py'
+      - '.github/workflows/classic-soundtracks.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: classic-soundtracks-main
+  cancel-in-progress: false
+jobs:
+  synthesize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install 'numpy>=1.26,<3'
+      - name: Generate new genre arrangements
+        run: python scripts/generate_classic_soundtracks.py
+      - name: Validate distinct 60s PCM files
+        run: |
+          python - <<'PY'
+          import hashlib, pathlib, wave
+          files = sorted(pathlib.Path("soundtracks/classic").glob("*.wav"))
+          assert len(files) == 5
+          hashes = []
+          for path in files:
+              with wave.open(str(path), "rb") as f:
+                  assert (f.getnchannels(),f.getsampwidth(),f.getframerate(),f.getnframes()) == (1,2,16000,960000)
+                  hashes.append(hashlib.sha256(f.readframes(f.getnframes())).hexdigest())
+          assert len(set(hashes)) == 5
+          PY
+      - name: Commit generated tracks directly to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add soundtracks/classic/*.wav
+          if ! git diff --cached --quiet; then
+            git commit -m "build(audio): regenerate five classic genre soundtracks"
+            git push origin HEAD:main
+          fi
