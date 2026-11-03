@@ -27,7 +27,7 @@ def test_final_stage_always_uses_true_n():
     assert stages == tuple(sorted(set(stages)))
 
 
-def test_timeline_final_payoff_only_in_last_seven_seconds():
+def test_classic_timeline_three_intro_fifty_two_middle_five_final():
     result = analyze(_shape())
     cfg = Settings(samples=128, duration=60, fps=30)
     stages = visual_stages(result, cfg)
@@ -36,7 +36,9 @@ def test_timeline_final_payoff_only_in_last_seven_seconds():
     transition = round(cfg.transition_seconds * cfg.fps)
     final_frames = round(cfg.final_seconds * cfg.fps)
 
-    assert cfg.final_seconds == 7.0
+    assert cfg.flash_seconds == 3.0
+    assert cfg.final_seconds == 5.0
+    assert cfg.transition_seconds == 0.4
     assert stage_timing(0, total, cfg, stages)[0] == "flash"
     assert stage_timing(opening-1, total, cfg, stages)[0] == "flash"
     assert stage_timing(opening, total, cfg, stages)[0] == "transition_in"
@@ -44,6 +46,20 @@ def test_timeline_final_payoff_only_in_last_seven_seconds():
     assert stage_timing(total - final_frames - 1, total, cfg, stages)[0] == "transition_out"
     assert stage_timing(total - final_frames, total, cfg, stages)[0] == "final"
     assert stage_timing(total - 1, total, cfg, stages)[0] == "final"
+    # Exactly 3s opening + 52s of transition/cycles + 5s payoff.
+    assert opening == 90
+    assert transition == 12
+    assert final_frames == 150
+    assert stage_timing(89, total, cfg, stages)[0] == "flash"
+    assert stage_timing(90, total, cfg, stages)[0] == "transition_in"
+    assert stage_timing(102, total, cfg, stages)[0] == "stage"
+    assert stage_timing(1637, total, cfg, stages)[0] == "stage"
+    assert stage_timing(1638, total, cfg, stages)[0] == "transition_out"
+    assert stage_timing(1649, total, cfg, stages)[0] == "transition_out"
+    assert stage_timing(1650, total, cfg, stages)[0] == "final"
+    assert (total - opening - final_frames) == 52 * cfg.fps
+    assert sum(stage_timing(f, total, cfg, stages)[0] == "stage"
+               for f in range(total)) == round(51.2 * cfg.fps)
 
     # No idle interval: every frame from start to end has a meaningful scene.
     modes = [stage_timing(f, total, cfg, stages)[0] for f in range(total)]
