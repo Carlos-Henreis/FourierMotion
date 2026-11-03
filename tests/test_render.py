@@ -144,7 +144,7 @@ def test_insufficient_duration_rejected():
 def test_viral_preset_has_twenty_second_payoff_and_few_cycles():
     result = analyze(_shape())
     cfg = Settings(preset="viral", samples=128, duration=20, fps=30,
-                   flash_seconds=0.5, transition_seconds=0.2,
+                   flash_seconds=0.0, transition_seconds=0.0,
                    final_seconds=4.0, visual_max_terms=64,
                    stage_terms=(1, 2, 5, 15, 40, 100, 150, 200))
     cfg.validate()
@@ -153,8 +153,9 @@ def test_viral_preset_has_twenty_second_payoff_and_few_cycles():
     assert stages[-1] == result.n_terms
     assert len(stages) <= 6
     total = 600
-    assert stage_timing(0, total, cfg, stages)[0] == "flash"
-    assert stage_timing(15, total, cfg, stages)[0] == "transition_in"
+    assert stage_timing(0, total, cfg, stages)[0] == "stage"
+    assert stage_timing(1, total, cfg, stages)[0] == "stage"
+    assert stage_timing(15, total, cfg, stages)[0] == "stage"
     assert stage_timing(30, total, cfg, stages)[0] == "stage"
     assert stage_timing(480, total, cfg, stages)[0] == "final"
     assert stage_timing(599, total, cfg, stages)[0] == "final"
@@ -171,3 +172,81 @@ def test_viral_has_larger_rendering_area_than_classic():
     assert _visual_scale(result, 1080, 1920, viral, "stage") > (
         _visual_scale(result, 1080, 1920, classic, "stage")
     )
+
+
+def test_viral_first_frame_shows_epicycles_formulas_reference_and_hook(monkeypatch):
+    import fourier_motion.render as renderer
+
+    result = analyze(_shape())
+    labels = np.zeros(len(result.original), dtype=int)
+    cfg = Settings(preset="viral", samples=128, width=540, height=960,
+                   fps=12, duration=20, flash_seconds=0,
+                   transition_seconds=0, final_seconds=4,
+                   visual_max_terms=64, hook_text="Os epiciclos desenham!")
+    total = int(cfg.duration * cfg.fps)
+    drawn = {"epicycles": 0, "formulas": 0, "original_guide": 0,
+             "hook": 0, "bridges": 0}
+    actual_epicycles = renderer._epicycles
+    actual_formulas = renderer._draw_formulas
+    actual_paths = renderer._paths
+    actual_hook = renderer._hook
+    actual_dotted = renderer._dotted_connectors
+
+    def epicycles(*args, **kwargs):
+        drawn["epicycles"] += 1
+        return actual_epicycles(*args, **kwargs)
+
+    def formulas(*args, **kwargs):
+        drawn["formulas"] += 1
+        return actual_formulas(*args, **kwargs)
+
+    def paths(*args, **kwargs):
+        if args[1] is result.original:
+            drawn["original_guide"] += 1
+        return actual_paths(*args, **kwargs)
+
+    def hook(*args, **kwargs):
+        drawn["hook"] += 1
+        return actual_hook(*args, **kwargs)
+
+    def dotted(*args, **kwargs):
+        drawn["bridges"] += 1
+        return actual_dotted(*args, **kwargs)
+
+    monkeypatch.setattr(renderer, "_epicycles", epicycles)
+    monkeypatch.setattr(renderer, "_draw_formulas", formulas)
+    monkeypatch.setattr(renderer, "_paths", paths)
+    monkeypatch.setattr(renderer, "_hook", hook)
+    monkeypatch.setattr(renderer, "_dotted_connectors", dotted)
+
+    first = renderer.render_frame(result, labels, cfg, 0, total)
+    second = renderer.render_frame(result, labels, cfg, 1, total)
+    assert first.size == second.size == (540, 960)
+    assert not np.array_equal(np.asarray(first), np.asarray(second))
+    assert drawn == {"epicycles": 4, "formulas": 2, "original_guide": 2,
+                     "hook": 2, "bridges": 0}
+
+
+def test_classic_still_has_static_intro_and_formulas_only_in_final(monkeypatch):
+    import fourier_motion.render as renderer
+
+    result = analyze(_shape())
+    labels = np.zeros(len(result.original), dtype=int)
+    cfg = Settings(samples=128, visual_max_terms=64, width=540, height=960,
+                   fps=12, duration=60, hook_text="Classic")
+    calls = []
+    actual = renderer._draw_formulas
+
+    def spy(*args, **kwargs):
+        calls.append(1)
+        return actual(*args, **kwargs)
+
+    monkeypatch.setattr(renderer, "_draw_formulas", spy)
+    total = round(cfg.duration * cfg.fps)
+    assert renderer.stage_timing(0, total, cfg, renderer.visual_stages(result, cfg))[0] == "flash"
+    renderer.render_frame(result, labels, cfg, 0, total)
+    assert not calls
+    renderer.render_frame(result, labels, cfg, round(12 * cfg.fps), total)
+    assert not calls
+    renderer.render_frame(result, labels, cfg, total - 1, total)
+    assert len(calls) == 1
