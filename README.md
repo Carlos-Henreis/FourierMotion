@@ -420,18 +420,23 @@ pontos padrão, o limiar de erro ou a trajetória contínua.
 | | `classic` (padrão) | `viral` |
 |---|---|---|
 | Duração | 60 segundos | 20 segundos |
-| Abertura | 7 segundos | 0,5 segundo |
-| Transições | 0,4 segundo | 0,2 segundo |
+| Abertura | 7 segundos | **Nenhuma; epiciclos no frame zero** |
+| Transições | 0,4 segundo | Sem transição de abertura; payoff direto |
 | Final | 53–60 s | 16–20 s |
 | Etapas | completas e dinâmicas | até seis marcos de N |
-| Visual | original | escala e brilho reforçados |
-| Gancho | abertura | primeiros 2,5 segundos |
+| Visual | original | escala e brilho reforçados, referência mais legível |
+| Fórmulas | no resultado final | durante todos os ciclos e no resultado |
+| Gancho | abertura | primeiros 2,5 segundos, sobre os epiciclos |
 
 O modo `viral` usa a sequência de marcos `1, 5, 25, 100, 250, N*`
 limitada pelo N final real. Isso acelera as mudanças visuais e ainda termina
-no N que efetivamente atinge a precisão matemática solicitada. A imagem
-começa a ser desenhada por volta de **0,7 s** (abertura de 0,5 s e transição
-de 0,2 s). O modo `classic` conserva os comportamentos antigos.
+no N que efetivamente atinge a precisão matemática solicitada. O desenho e os epiciclos aparecem **desde o primeiro frame (0,0 s)**,
+sem abertura parada. O contorno original é exibido em azul-acinzentado
+visível por trás da reconstrução; linhas auxiliares de deslocamento entre
+contornos continuam ocultas até o resultado final. As fórmulas X/Y aparecem
+durante a animação, junto com N e Erro. O gancho aparece sobre o movimento
+nos primeiros 2,5 segundos. O modo `classic` conserva os comportamentos
+anteriores.
 
 ### Exemplo: GTA VI em 20 segundos
 
@@ -466,3 +471,23 @@ seus arquivos de 60 segundos na raiz de `soundtracks/` ou use `--audio`.
 `--duration`, `--flash-seconds`, `--final-seconds` ou
 `--transition-seconds`. Se alterar o começo da cena final, escolha uma
 trilha com clímax no tempo correspondente.
+
+
+### Atualização visual: inspiração nos Reels de epiciclos
+
+Depois de comparar vídeos de referência, a edição `viral` foi ajustada para
+evitar a perda de interesse na abertura: **o primeiro frame já é a cena
+matemática**, com duas famílias de epiciclos X/Y, referência de desenho
+visível, traço dourado, contador de N/erro e, quando informado, o hook.
+As fórmulas trigonométricas também ficam visíveis durante os ciclos;
+não são apenas um elemento da tela final. As alterações de composição e
+contraste são exclusivas do preset `viral`.
+
+O preset `classic` continua com a abertura de 7 segundos, o timing
+de 60 segundos e fórmulas somente no encerramento.
+
+**Linha temporal padrão de `viral`:** 0–16 s de ciclos com progressão de
+N até o N matematicamente calculado; 16–20 s de resultado final.
+O áudio de 20 segundos já incluído no repositório mantém o clímax em 16 s.
+`--flash-seconds` e `--transition-seconds` continuam disponíveis como
+sobrescritas explícitas, caso se queira experimentar aberturas alternativas.
