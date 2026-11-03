@@ -23,7 +23,7 @@ def ffmpeg_command(settings, output: Path, audio: Path | None = None) -> list[st
     """Encode RGB video, optionally muxing an audio file.
 
     apad fills a too-short soundtrack; atrim trims longer audio. Audio starts
-    exactly at video t=0. Viral audio has its climax at t=16, classic at t=53.
+    exactly at video t=0. Viral audio has its climax at t=16, classic at t=55.
     """
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -71,10 +71,11 @@ def choose_audio(
     folder = Path(audio_dir).expanduser().resolve()
     if not folder.is_dir():
         raise ValueError(f"Pasta de trilhas não encontrada: {folder}")
-    # The repo ships 20-second compositions under soundtracks/viral.
-    # Classic keeps its previous flat-directory behavior, unchanged.
-    if preset == "viral" and (folder / "viral").is_dir():
-        folder = folder / "viral"
+    # Bundled playlists are separated by preset and duration.
+    # A legacy flat soundtracks/ folder still works if a preset-specific
+    # subdirectory does not exist.
+    if (folder / preset).is_dir():
+        folder = folder / preset
     tracks = sorted(
         path for path in folder.iterdir()
         if path.is_file() and path.suffix.lower() in SUPPORTED_AUDIO
