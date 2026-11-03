@@ -364,53 +364,43 @@ nem o valor do erro. O resultado fica mais limpo, principalmente em
 imagens com muitos detalhes próximos.
 
 
-## Trilha sonora: cinco gêneros com seleção aleatória
+## Trilhas sonoras por preset (seleção aleatória)
 
-O FourierMotion aceita áudio local e também escolhe **aleatoriamente uma
-faixa por vídeo** quando você informa uma pasta. Use músicas originais ou
-com licença apropriada para TikTok/Instagram.
+O FourierMotion aceita `--audio` para escolher manualmente uma trilha e
+`--audio-dir soundtracks` para sortear uma faixa. As duas playlists
+pré-instaladas **não se misturam**:
 
-Cinco composições originais de **60 segundos** foram produzidas para o
-projeto: `01_ambient`, `02_synthwave`, `03_lofi`,
-`04_orchestral` e `05_chiptune`. Cada uma tem MIDI editável e MP3
-para exportação. As trilhas começam em Ré menor, 120 BPM, com virada
-musical no segundo 53, correspondente ao payoff visual.
+- `soundtracks/classic/`: cinco faixas originais **de 60 segundos**, em
+  rock, anime (pop-rock/synth), forró, sertanejo e hip-hop. Introdução
+  curta, desenvolvimento energético e virada sonora aos **55 segundos**.
+- `soundtracks/viral/`: as cinco faixas já existentes **de 20 segundos**;
+  mantém a virada aos 16 segundos.
 
-Extraia os cinco MP3s numa pasta `soundtracks/` no repositório
-(`soundtracks/` fica fora do versionamento por padrão).
-Então execute:
+As dez faixas estão no repositório em formato WAV PCM mono 16 kHz/16-bit;
+o FFmpeg converte para AAC e normaliza o volume na exportação. São
+arranjos instrumentais sintetizados originalmente para o projeto e
+**não são músicas comerciais nem versões de músicas conhecidas**.
+
+Exemplo clássico de 60 segundos:
 
 ```bash
-fourier-motion desenho.png --output output/reel.mp4 --error 0.005 \
-  --hook-text "Como o Fourier desenharia o Luffy?" \
+fourier-motion examples/mbappe/desenho.png \
+  --output examples/mbappe/output/classic.mp4 \
+  --preset classic --error 0.005 \
+  --hook-text "O Mbappé agora manda até nas equações 💀" \
   --continuous-path --audio-dir soundtracks
 ```
 
-A cada execução, uma faixa é selecionada com probabilidade uniforme
-entre os arquivos WAV/MP3/M4A/AAC/FLAC/OGG da pasta. O terminal registra
-o nome selecionado antes da renderização. Para repetir a mesma escolha:
+Exemplo com faixa manual: `--audio soundtracks/classic/FourierMotion_01_rock_60s.wav`.
 
-```bash
-fourier-motion desenho.png --audio-dir soundtracks --audio-seed 42
-```
+Se houver uma subpasta `soundtracks/<preset>/`, somente os arquivos
+dela participam do sorteio. Pastas sem subdiretório de preset seguem
+compatíveis com a seleção antiga diretamente na pasta indicada.
+A escolha aparece no terminal e `--audio-seed 42` permite reproduzi-la.
 
-Para escolher manualmente:
-
-```bash
-fourier-motion desenho.png --audio soundtracks/02_synthwave.mp3
-```
-
-Não combine `--audio` e `--audio-dir`. O algoritmo de seleção ignora
-arquivos MIDI e textos; exporte os arquivos MIDI como áudio antes de usar.
-O FFmpeg codifica em AAC, corta faixas longas ou preenche faixas curtas
-para preservar exatamente os 60 segundos de vídeo. O áudio começa em
-00:00, portanto a virada gravada aos 53 segundos acompanha o encerramento
-na configuração padrão (`--duration 60 --final-seconds 7`).
-Se você alterar esses valores, será necessário adaptar a trilha também.
-
-Os arquivos de áudio não precisam estar no repositório Git:
-você pode manter uma biblioteca local e escolher diferentes faixas a cada Reel.
-
+O clímax musical de 55 segundos corresponde à entrada da cena final
+no `classic` padrão. Para um cronograma personalizado, ajuste ou
+substitua o áudio de acordo com o novo início da cena final.
 
 ## Presets de publicação: `viral` e `classic`
 
@@ -420,9 +410,9 @@ pontos padrão, o limiar de erro ou a trajetória contínua.
 | | `classic` (padrão) | `viral` |
 |---|---|---|
 | Duração | 60 segundos | 20 segundos |
-| Abertura | 7 segundos | **Nenhuma; epiciclos no frame zero** |
-| Transições | 0,4 segundo | Sem transição de abertura; payoff direto |
-| Final | 53–60 s | 16–20 s |
+| Abertura | **3 segundos** | **Nenhuma; epiciclos no frame zero** |
+| Transições | **0,4 segundo cada** | Sem transição de abertura; payoff direto |
+| Final | **55–60 s** | 16–20 s |
 | Etapas | completas e dinâmicas | até seis marcos de N |
 | Visual | original | escala e brilho reforçados, referência mais legível |
 | Fórmulas | no resultado final | durante todos os ciclos e no resultado |
@@ -435,8 +425,8 @@ sem abertura parada. O contorno original é exibido em azul-acinzentado
 visível por trás da reconstrução; linhas auxiliares de deslocamento entre
 contornos continuam ocultas até o resultado final. As fórmulas X/Y aparecem
 durante a animação, junto com N e Erro. O gancho aparece sobre o movimento
-nos primeiros 2,5 segundos. O modo `classic` conserva os comportamentos
-anteriores.
+nos primeiros 2,5 segundos. O modo `classic` usa a nova timeline de 3 + 52 + 5 segundos,
+sem alterar os demais comportamentos.
 
 ### Exemplo: GTA VI em 20 segundos
 
@@ -483,11 +473,32 @@ As fórmulas trigonométricas também ficam visíveis durante os ciclos;
 não são apenas um elemento da tela final. As alterações de composição e
 contraste são exclusivas do preset `viral`.
 
-O preset `classic` continua com a abertura de 7 segundos, o timing
-de 60 segundos e fórmulas somente no encerramento.
+O preset `classic` mantém os 60 segundos e as fórmulas somente no
+encerramento, mas agora exibe a prévia por 3 segundos e o payoff por 5 segundos.
 
 **Linha temporal padrão de `viral`:** 0–16 s de ciclos com progressão de
 N até o N matematicamente calculado; 16–20 s de resultado final.
 O áudio de 20 segundos já incluído no repositório mantém o clímax em 16 s.
 `--flash-seconds` e `--transition-seconds` continuam disponíveis como
 sobrescritas explícitas, caso se queira experimentar aberturas alternativas.
+
+
+## Timeline atual do `classic` (60 segundos)
+
+O pedido **3 s de abertura + 52 s de ciclos + 5 s de resultado**
+preserva as duas transições que o projeto já tinha.
+Elas ocupam **0,4 segundo cada dentro do bloco intermediário de 52 s**:
+
+| Intervalo | Conteúdo |
+|---|---|
+| 0,0–3,0 s | Abertura com desenho original e gancho |
+| 3,0–3,4 s | Transição vibrante da abertura aos epiciclos |
+| 3,4–54,6 s | **51,2 s** de ciclos Fourier, sem pausas |
+| 54,6–55,0 s | Transição vibrante para o resultado |
+| 55,0–60,0 s | Resultado final, N real, erro e fórmulas |
+
+Assim, **os 52 segundos centrais incluem 51,2 s de ciclos e 0,8 s
+de transições**, sem estender o vídeo além de 60 s.
+A virada das cinco novas trilhas clássicas ocorre exatamente em 55 s.
+
+O modo `viral` de 20 segundos não foi alterado por esta revisão.
