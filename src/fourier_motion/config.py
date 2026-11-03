@@ -11,14 +11,14 @@ class Settings:
     duration: float = 60.0
     width: int = 1080
     height: int = 1920
-    final_seconds: float = 7.0
+    final_seconds: float = 5.0
     max_terms: int | None = None
     min_contour_length: float = 25.0
     max_contours: int = 128
     speed: str = "medium"
     target_fill_ratio: float = 0.68
     cycle_seconds: float = 3.5
-    flash_seconds: float = 7.0
+    flash_seconds: float = 3.0
     transition_seconds: float = 0.4
     visual_max_terms: int = 200
     stage_terms: tuple[int, ...] = (1, 2, 5, 15, 40, 100, 150, 200)
