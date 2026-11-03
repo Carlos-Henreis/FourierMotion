@@ -37,6 +37,10 @@ def visual_stages(analysis: Analysis, cfg: Settings) -> tuple[int, ...]:
     specific input image. Geometric spacing helps avoid a final huge jump.
     """
     final_n = analysis.n_terms
+    if cfg.preset == "viral":
+        # Fewer stages, all bounded by the true Fourier cutoff.
+        return tuple(sorted({min(final_n, n) for n in
+                             (1, 5, 25, 100, 250, final_n)}))
     limit = min(final_n, cfg.visual_max_terms)
     stages = {1, final_n}
     stages.update(n for n in cfg.stage_terms if 1 <= n <= limit)
@@ -181,7 +185,14 @@ def _visual_scale(analysis: Analysis, w: int, h: int, cfg: Settings,
     margens para os textos no topo e as fórmulas na parte inferior.
     """
     width, height = np.ptp(analysis.original, axis=0)
-    if scene == "flash":
+    if cfg.preset == "viral":
+        if scene == "flash":
+            region_width, region_height = w * .86, h * .55
+        elif scene == "final":
+            region_width, region_height = w * .90, h * .59
+        else:
+            region_width, region_height = w * .85, h * .55
+    elif scene == "flash":
         region_width, region_height = w * .74, h * .40
     elif scene == "final":
         region_width, region_height = w * .82, h * .53
@@ -209,7 +220,7 @@ def _circle_scale(analysis: Analysis, w: int, h: int, cfg: Settings,
 
 
 def _hook(draw, cfg: Settings, elapsed: float):
-    if not cfg.hook_text or elapsed >= cfg.flash_seconds:
+    if not cfg.hook_text or elapsed >= (2.5 if cfg.preset == "viral" else cfg.flash_seconds):
         return
     # Wrap to avoid clipping long dynamic captions.
     import textwrap
@@ -338,7 +349,7 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
                                  ("final", analysis.n_terms, 1.0, len(stages)-1))
         return _vibrant_transition(before, after, phase)
     scale = _visual_scale(analysis, w, h, cfg, scene=mode)
-    cx = w * (.50 if mode in ("flash", "final") else .65)
+    cx = w * (.50 if mode in ("flash", "final") else (.54 if cfg.preset == "viral" else .65))
     cy = h * (.44 if mode == "flash" else .405 if mode == "final" else .415)
     # Mean subtraction is done before FFT. Visual bbox centering is a
     # separate translation: mean and bbox midpoint are not necessarily equal.
@@ -353,6 +364,11 @@ def render_frame(analysis: Analysis, labels: np.ndarray, cfg: Settings,
     image = Image.new("RGB", (w, h), "#08090d")
     draw = ImageDraw.Draw(image)
     stroke = _stroke_style(labels, w)
+    if cfg.preset == "viral":
+        stroke["line"] = max(stroke["line"], round(w / 360))
+        stroke["glow"] = max(stroke["glow"], round(w / 155))
+        stroke["glow_alpha"] = max(stroke["glow_alpha"], 0.55)
+        stroke["guide"] = max(stroke["guide"], 2)
 
     if mode in ("flash", "final"):
         glow = Image.new("RGB", (w, h), "#08090d")
