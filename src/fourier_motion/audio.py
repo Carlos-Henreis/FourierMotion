@@ -20,11 +20,10 @@ def validate_audio(audio: str | Path | None) -> Path | None:
 
 
 def ffmpeg_command(settings, output: Path, audio: Path | None = None) -> list[str]:
-    """Encode 60 seconds of RGB video, optionally muxing an audio file.
+    """Encode RGB video, optionally muxing an audio file.
 
     apad fills a too-short soundtrack; atrim trims longer audio. Audio starts
-    exactly at video t=0, without changing video frames, harmonic staging,
-    or the 53-second visual payoff.
+    exactly at video t=0. Viral audio has its climax at t=16, classic at t=53.
     """
     cmd = [
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -58,6 +57,7 @@ def choose_audio(
     audio: str | Path | None = None,
     audio_dir: str | Path | None = None,
     audio_seed: int | None = None,
+    preset: str = "classic",
 ) -> Path | None:
     """Choose one track uniformly from a local folder, with optional seeded RNG.
 
@@ -71,6 +71,10 @@ def choose_audio(
     folder = Path(audio_dir).expanduser().resolve()
     if not folder.is_dir():
         raise ValueError(f"Pasta de trilhas não encontrada: {folder}")
+    # The repo ships 20-second compositions under soundtracks/viral.
+    # Classic keeps its previous flat-directory behavior, unchanged.
+    if preset == "viral" and (folder / "viral").is_dir():
+        folder = folder / "viral"
     tracks = sorted(
         path for path in folder.iterdir()
         if path.is_file() and path.suffix.lower() in SUPPORTED_AUDIO
