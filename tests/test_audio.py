@@ -93,3 +93,20 @@ def test_audio_choice_rejects_conflicting_and_missing_inputs(tmp_path):
     empty.mkdir()
     with pytest.raises(ValueError, match="Nenhuma trilha"):
         choose_audio(audio_dir=empty)
+
+
+def test_viral_audio_selects_only_20_second_tracks(tmp_path):
+    from fourier_motion.audio import choose_audio
+
+    (tmp_path / "old_60s.mp3").write_bytes(b"old")
+    viral = tmp_path / "viral"
+    viral.mkdir()
+    names = ["01_ambient_20s.wav", "02_synthwave_20s.wav",
+             "03_lofi_20s.wav", "04_orchestral_20s.wav",
+             "05_chiptune_20s.wav"]
+    for name in names:
+        (viral / name).write_bytes(b"new")
+    picks = {choose_audio(audio_dir=tmp_path, audio_seed=i, preset="viral").name
+             for i in range(80)}
+    assert picks == set(names)
+    assert choose_audio(audio_dir=tmp_path, preset="classic").name == "old_60s.mp3"
